@@ -7,7 +7,7 @@ import { AlertBanner, AppLogo, Field, Input, PrimaryButton, SecondaryButton, Sel
 
 const initialForms = {
   login: { email: '', password: '' },
-  register: { full_name: '', email: '', password: '', role: 'STUDENT' },
+  register: { full_name: '', email: '', password: '', role: 'STUDENT', secret_key: '' },
   verify: { email: '', otp: '' },
   admin: { email: '', password: '' },
 }
@@ -43,10 +43,28 @@ function AuthPage() {
       }
 
       if (activeTab === 'register') {
-        await api.post('/auth/register', forms.register)
-        setActiveTab('verify')
-        updateForm('verify', 'email', forms.register.email)
-        setBanner({ tone: 'success', message: 'Registration complete. Check your email for the OTP, then verify here.' })
+        if (forms.register.role === 'COLLEGE_ADMIN') {
+          await api.post('/admin/register', {
+            full_name: forms.register.full_name,
+            email: forms.register.email,
+            password: forms.register.password,
+            secret_key: forms.register.secret_key,
+          })
+          setActiveTab('admin')
+          updateForm('admin', 'email', forms.register.email)
+          updateForm('admin', 'password', forms.register.password)
+          setBanner({ tone: 'success', message: 'Admin account created successfully. You can sign in now.' })
+        } else {
+          await api.post('/auth/register', {
+            full_name: forms.register.full_name,
+            email: forms.register.email,
+            password: forms.register.password,
+            role: forms.register.role,
+          })
+          setActiveTab('verify')
+          updateForm('verify', 'email', forms.register.email)
+          setBanner({ tone: 'success', message: 'Registration complete. Check your email for the OTP, then verify here.' })
+        }
       }
 
       if (activeTab === 'verify') {
@@ -83,22 +101,24 @@ function AuthPage() {
 
   return (
     <div className="min-h-screen hero-gradient">
-      <main className="mx-auto grid min-h-screen max-w-7xl items-center gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:px-8">
-        <div className="space-y-6">
-          <Link to="/" className="inline-flex items-center gap-2 text-sm font-medium text-soft transition hover:text-brand-600">
-            <ArrowLeft className="h-4 w-4" />
+      <main className="mx-auto grid min-h-screen w-full max-w-[1720px] items-center gap-14 px-8 py-12 sm:px-10 lg:grid-cols-[minmax(0,1.15fr)_minmax(720px,860px)] lg:px-14 xl:px-16 2xl:px-20">
+        <div className="space-y-10">
+          <Link to="/" className="inline-flex items-center gap-3 text-[1.08rem] font-medium text-slate-900 transition hover:text-brand-600">
+            <ArrowLeft className="h-5 w-5" />
             Back to home
           </Link>
-          <AppLogo />
-          <div className="max-w-xl">
-            <h1 className="font-display text-4xl font-semibold tracking-tight md:text-5xl">
+          <div className="origin-left scale-[1.14]">
+            <AppLogo />
+          </div>
+          <div className="max-w-3xl">
+            <h1 className="font-display text-[3.4rem] leading-[0.95] font-semibold tracking-tight text-slate-950 md:text-[4rem] xl:text-[4.7rem] 2xl:text-[5.15rem]">
               Sign in to the CampusConnect workspace.
             </h1>
-            <p className="mt-4 text-base leading-7 text-soft">
+            <p className="mt-7 max-w-[52rem] text-[1.22rem] leading-9 text-slate-800">
               Students can discover and apply. Organizers can create events and review applications. Admins can moderate the queue.
             </p>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-7 sm:grid-cols-2">
             <InfoBlock title="Student and organizer access" icon={LogIn} text="Login, register, verify email, and manage your profile in one place." />
             <InfoBlock title="Admin moderation" icon={ShieldCheck} text="Dedicated sign-in for campus admins reviewing event approvals." />
           </div>
@@ -107,28 +127,28 @@ function AuthPage() {
         <motion.section
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          className="surface-panel rounded-[32px] p-6 md:p-8"
+          className="surface-panel mx-auto w-full max-w-[860px] rounded-[24px] p-9 md:p-11 xl:p-12"
         >
-          <div className="mb-5 grid grid-cols-2 gap-2 rounded-[24px] bg-slate-200/90 p-2 dark:bg-slate-900/80 md:grid-cols-4">
+          <div className="mb-8 grid grid-cols-2 gap-3 rounded-[22px] bg-slate-800 p-3 text-white md:grid-cols-4">
             {['login', 'register', 'verify', 'admin'].map((tab) => (
               <button
                 key={tab}
                 type="button"
                 onClick={() => setActiveTab(tab)}
-                className={`rounded-2xl px-4 py-3 text-sm font-medium capitalize transition ${
+                className={`min-h-16 rounded-[18px] px-5 py-4 text-[1.08rem] font-semibold capitalize transition ${
                   activeTab === tab
-                    ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white'
-                    : 'text-slate-600 hover:bg-white/70 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/70 dark:hover:text-white'
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-100/85 hover:bg-white/12 hover:text-white'
                 }`}
               >
-                {tab === 'admin' ? 'Admin' : tab}
+                {tab === 'admin' ? 'Admin' : tab === 'verify' ? 'Verify' : tab === 'register' ? 'Register' : 'Login'}
               </button>
             ))}
           </div>
 
           <AlertBanner tone={banner.tone} message={banner.message} onClose={() => setBanner({ tone: 'info', message: '' })} />
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-6">
             {activeTab === 'login' ? (
               <>
                 <Field label="Email">
@@ -157,8 +177,19 @@ function AuthPage() {
                     onChange={(event) => updateForm('register', 'role', event.target.value)}
                   >
                     <option value="STUDENT">Student</option>
+                    <option value="COLLEGE_ADMIN">Admin</option>
                   </Select>
                 </Field>
+                {forms.register.role === 'COLLEGE_ADMIN' ? (
+                  <Field label="Admin secret">
+                    <Input
+                      type="password"
+                      value={forms.register.secret_key}
+                      onChange={(event) => updateForm('register', 'secret_key', event.target.value)}
+                      required
+                    />
+                  </Field>
+                ) : null}
               </>
             ) : null}
 
@@ -170,7 +201,7 @@ function AuthPage() {
                 <Field label="OTP">
                   <Input value={forms.verify.otp} onChange={(event) => updateForm('verify', 'otp', event.target.value)} required />
                 </Field>
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-wrap gap-4">
                   <SecondaryButton type="button" onClick={resendOtp} disabled={!forms.verify.email}>
                     Resend OTP
                   </SecondaryButton>
@@ -201,12 +232,12 @@ function AuthPage() {
 
 function InfoBlock({ icon: Icon, title, text }) {
   return (
-    <div className="glass-panel rounded-[28px] p-5">
-      <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600 dark:text-brand-300">
-        <Icon className="h-5 w-5" />
+    <div className="glass-panel elevated-hover rounded-[24px] p-8 xl:p-9">
+      <div className="mb-5 flex h-15 w-15 items-center justify-center rounded-[18px] bg-brand-500/10 text-brand-600 dark:text-brand-300">
+        <Icon className="h-6 w-6" />
       </div>
-      <h2 className="mb-2 font-display text-lg font-semibold">{title}</h2>
-      <p className="mb-0 text-sm text-soft">{text}</p>
+      <h2 className="mb-3 font-display text-[2rem] leading-tight font-semibold text-slate-950 xl:text-[2.2rem]">{title}</h2>
+      <p className="mb-0 text-[1.14rem] leading-9 text-slate-800">{text}</p>
     </div>
   )
 }

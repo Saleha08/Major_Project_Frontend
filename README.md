@@ -1,16 +1,52 @@
-# React + Vite
+# CampusConnect Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+CampusConnect is a React + Vite frontend for a campus event and collaboration platform.
 
-Currently, two official plugins are available:
+Current frontend capabilities:
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Public event discovery
+- Student registration, OTP verification, and login
+- Admin registration and admin login
+- Organizer event creation
+- Applicant review and status updates
+- Student profile management
+- Notifications
+- Bulk email to applicants for organizers
+- Admin event moderation
 
-## React Compiler
+## Development
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Install dependencies:
 
-## Expanding the ESLint configuration
+```bash
+npm install
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Run the app:
+
+```bash
+npm run dev
+```
+
+Build the app:
+
+```bash
+npm run build
+```
+
+Lint the app:
+
+```bash
+npx eslint src
+```
+
+## Configuration
+
+The frontend reads the API base URL from:
+
+```env
+VITE_API_BASE_URL=http://localhost:5000/api
+```
+
+If not provided, it defaults to `http://localhost:5000/api`.
+
