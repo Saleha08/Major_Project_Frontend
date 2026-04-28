@@ -1,76 +1,37 @@
 import { useCallback, useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import Modal from 'react-bootstrap/Modal'
 import {
-  Bell,
-  Bookmark,
-  BookmarkCheck,
-  Briefcase,
-  CalendarPlus2,
-  Compass,
-  LayoutDashboard,
-  Mail,
-  SearchCode,
-  ShieldCheck,
-  UserRound,
+  Bell, Bookmark, BookmarkCheck, Briefcase, CalendarPlus2, CheckCircle,
+  Compass, Edit3, LayoutDashboard, Mail, SearchCode, Send,
+  ShieldCheck, Trash2, UserRound, XCircle,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { AppShell } from '../components/AppShell.jsx'
 import {
-  AlertBanner,
-  EmptyState,
-  Field,
-  Input,
-  Pill,
-  PrimaryButton,
-  SearchInput,
-  SectionCard,
-  SecondaryButton,
-  Select,
-  StatCard,
-  Textarea,
+  AlertBanner, Avatar, Divider, EmptyState, Field, Input,
+  Pill, PrimaryButton, SearchInput, SectionCard, SecondaryButton,
+  Select, SkillTag, StatCard, Textarea,
 } from '../components/ui.jsx'
 import { useApp } from '../context/useApp.js'
 import { formatDate, formatDateTime, toArray } from '../lib/api.js'
 
 const defaultEventForm = {
-  title: '',
-  event_name: '',
-  category: 'TECH',
-  number_of_positions: 1,
-  deadline: '',
-  description: '',
-  required_skills: '',
+  title: '', event_name: '', category: 'TECH',
+  number_of_positions: 1, deadline: '', description: '', required_skills: '',
 }
 
 const defaultProfileForm = {
-  bio: '',
-  department: '',
-  year: '',
-  profile_picture: '',
-  skills: '',
-  interests: '',
+  bio: '', department: '', year: '', profile_picture: '', skills: '', interests: '',
 }
 
-const defaultEmailForm = {
-  subject: '',
-  message: '',
-  target: 'ALL',
-}
+const defaultEmailForm = { subject: '', message: '', target: 'ALL' }
 
 function toDateTimeLocal(value) {
-  if (!value) {
-    return ''
-  }
-
+  if (!value) return ''
   const date = new Date(value)
-  if (Number.isNaN(date.getTime())) {
-    return ''
-  }
-
-  const pad = (item) => String(item).padStart(2, '0')
-
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+  if (Number.isNaN(date.getTime())) return ''
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
 function mapRecordToEventForm(record) {
@@ -88,8 +49,7 @@ function mapRecordToEventForm(record) {
 function WorkspacePage() {
   const navigate = useNavigate()
   const { api, logout, persistSession, token, user } = useApp()
-  const userRole = user?.role
-  const isAdmin = userRole === 'COLLEGE_ADMIN'
+  const isAdmin = user?.role === 'COLLEGE_ADMIN'
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [currentSection, setCurrentSection] = useState('overview')
   const [banner, setBanner] = useState({ tone: 'info', message: '' })
@@ -105,18 +65,9 @@ function WorkspacePage() {
   const [applyMessage, setApplyMessage] = useState('')
   const [selectedEventId, setSelectedEventId] = useState('')
   const [workspace, setWorkspace] = useState({
-    events: [],
-    myEvents: [],
-    myApplications: [],
-    notifications: [],
-    pendingEvents: [],
-    allAdminEvents: [],
-    savedEvents: [],
-    eventDrafts: [],
-    students: [],
-    profile: null,
-    experiences: [],
-    eventApplications: [],
+    events: [], myEvents: [], myApplications: [], notifications: [],
+    pendingEvents: [], allAdminEvents: [], savedEvents: [], eventDrafts: [],
+    students: [], profile: null, experiences: [], eventApplications: [],
   })
 
   const sections = isAdmin
@@ -136,118 +87,114 @@ function WorkspacePage() {
         { key: 'profile', label: 'Profile', icon: UserRound },
       ]
 
+  const unreadCount = workspace.notifications.filter(n => !n.is_read).length
+
   const refreshWorkspace = useCallback(async () => {
     try {
-      const [
-        me,
-        publicEvents,
-        myEvents,
-        myApplications,
-        notifications,
-        savedEventsResult,
-        draftsResult,
-        profileResult,
-        pendingEventsResult,
-        allAdminEventsResult,
+      const [me, publicEvents, myEvents, myApplications, notifications,
+        savedEventsResult, draftsResult, profileResult, pendingEventsResult, allAdminEventsResult,
       ] = await Promise.allSettled([
         api.get('/auth/me', { token }),
         api.get('/events?limit=12', { token }),
         api.get('/events/my-events?limit=20', { token }),
         api.get('/applications/my-applications?limit=20', { token }),
         api.get('/notifications?limit=20', { token }),
-        userRole !== 'COLLEGE_ADMIN' ? api.get('/events/saved?limit=30', { token }) : Promise.resolve(null),
-        userRole !== 'COLLEGE_ADMIN' ? api.get('/event-drafts/my-drafts?limit=20', { token }) : Promise.resolve(null),
+        user?.role !== 'COLLEGE_ADMIN' ? api.get('/events/saved?limit=30', { token }) : Promise.resolve(null),
+        user?.role !== 'COLLEGE_ADMIN' ? api.get('/event-drafts/my-drafts?limit=20', { token }) : Promise.resolve(null),
         api.get('/profile', { token }),
-        userRole === 'COLLEGE_ADMIN' ? api.get('/admin/events/pending?limit=20', { token }) : Promise.resolve(null),
-        userRole === 'COLLEGE_ADMIN' ? api.get('/admin/events?limit=20', { token }) : Promise.resolve(null),
+        user?.role === 'COLLEGE_ADMIN' ? api.get('/admin/events/pending?limit=20', { token }) : Promise.resolve(null),
+        user?.role === 'COLLEGE_ADMIN' ? api.get('/admin/events?limit=20', { token }) : Promise.resolve(null),
       ])
 
-      const requiredFailures = [me, publicEvents, myEvents, myApplications, notifications]
-        .filter((result) => result.status === 'rejected')
-
-      if (requiredFailures.length > 0) {
-        throw requiredFailures[0].reason
-      }
+      const required = [me, publicEvents, myEvents, myApplications, notifications]
+        .filter(r => r.status === 'rejected')
+      if (required.length > 0) throw required[0].reason
 
       const meData = me.value
-      const publicEventsData = publicEvents.value
-      const myEventsData = myEvents.value
-      const myApplicationsData = myApplications.value
-      const notificationsData = notifications.value
-      const savedEventsData = savedEventsResult.status === 'fulfilled' ? savedEventsResult.value : null
-      const draftsData = draftsResult.status === 'fulfilled' ? draftsResult.value : null
-      const profileData = profileResult.status === 'fulfilled' ? profileResult.value : null
-      const pendingEventsData = pendingEventsResult.status === 'fulfilled' ? pendingEventsResult.value : null
-      const allAdminEventsData = allAdminEventsResult.status === 'fulfilled' ? allAdminEventsResult.value : null
-
       const nextUser = meData.data?.user || user
-      if (
-        nextUser &&
-        (
-          nextUser.id !== user?.id ||
-          nextUser.role !== user?.role ||
-          nextUser.full_name !== user?.full_name ||
-          nextUser.email !== user?.email ||
-          nextUser.status !== user?.status
-        )
-      ) {
-        persistSession(token, nextUser)
-      }
-      setWorkspace((current) => ({
-        ...current,
-        events: publicEventsData.data?.events || [],
-        myEvents: myEventsData.data?.events || [],
-        myApplications: myApplicationsData.data?.applications || [],
-        notifications: notificationsData.data?.notifications || [],
-        savedEvents: savedEventsData?.data?.events || [],
-        eventDrafts: draftsData?.data?.drafts || [],
-        pendingEvents: pendingEventsData?.data?.events || [],
-        allAdminEvents: allAdminEventsData?.data?.events || [],
-        profile: profileData?.data?.profile || null,
-        experiences: profileData?.data?.experiences || [],
+      if (nextUser && nextUser.id !== user?.id) persistSession(token, nextUser)
+
+      setWorkspace(cur => ({
+        ...cur,
+        events: publicEvents.value?.data?.events || [],
+        myEvents: myEvents.value?.data?.events || [],
+        myApplications: myApplications.value?.data?.applications || [],
+        notifications: notifications.value?.data?.notifications || [],
+        savedEvents: savedEventsResult.status === 'fulfilled' ? (savedEventsResult.value?.data?.events || []) : [],
+        eventDrafts: draftsResult.status === 'fulfilled' ? (draftsResult.value?.data?.drafts || []) : [],
+        pendingEvents: pendingEventsResult.status === 'fulfilled' ? (pendingEventsResult.value?.data?.events || []) : [],
+        allAdminEvents: allAdminEventsResult.status === 'fulfilled' ? (allAdminEventsResult.value?.data?.events || []) : [],
+        profile: profileResult.status === 'fulfilled' ? (profileResult.value?.data?.profile || null) : null,
+        experiences: profileResult.status === 'fulfilled' ? (profileResult.value?.data?.experiences || []) : [],
       }))
 
-      if (profileData?.data?.profile) {
+      const profileData = profileResult.status === 'fulfilled' ? profileResult.value?.data : null
+      if (profileData?.profile) {
         setProfileForm({
-          bio: profileData.data.profile.bio || '',
-          department: profileData.data.profile.department || '',
-          year: profileData.data.profile.year || '',
-          profile_picture: profileData.data.profile.profile_picture || '',
-          skills: toArray(profileData.data.profile.skills).join(', '),
-          interests: toArray(profileData.data.profile.interests).join(', '),
+          bio: profileData.profile.bio || '',
+          department: profileData.profile.department || '',
+          year: profileData.profile.year || '',
+          profile_picture: profileData.profile.profile_picture || '',
+          skills: toArray(profileData.profile.skills).join(', '),
+          interests: toArray(profileData.profile.interests).join(', '),
         })
       }
     } catch (error) {
       setBanner({ tone: 'danger', message: error.message })
-      if (error.status === 401) {
-        logout()
-        navigate('/auth')
-      }
+      if (error.status === 401) { logout(); navigate('/auth') }
     }
-  }, [api, logout, navigate, persistSession, token, user, userRole])
+  }, [api, logout, navigate, persistSession, token, user])
 
   const searchStudents = useCallback(async (event) => {
     if (event) event.preventDefault()
     setBusy('students')
-
     const query = new URLSearchParams()
     if (studentFilters.search) query.set('search', studentFilters.search)
     if (studentFilters.department) query.set('department', studentFilters.department)
     if (studentFilters.year) query.set('year', studentFilters.year)
-    toArray(studentFilters.skills).forEach((skill) => query.append('skills', skill))
-
+    toArray(studentFilters.skills).forEach(s => query.append('skills', s))
     try {
       const response = await api.get(`/students/search?${query.toString()}`, { token })
-      setWorkspace((current) => ({
-        ...current,
-        students: response.data?.students || [],
-      }))
+      setWorkspace(cur => ({ ...cur, students: response.data?.students || [] }))
     } catch (error) {
       setBanner({ tone: 'danger', message: error.message })
-    } finally {
-      setBusy('')
-    }
+    } finally { setBusy('') }
   }, [api, studentFilters, token])
+
+  const fetchEventApplications = useCallback(async (eventId) => {
+    try {
+      const response = await api.get(`/events/${eventId}/applications?limit=20`, { token })
+      setWorkspace(cur => ({ ...cur, eventApplications: response.data?.applications || [] }))
+    } catch (error) {
+      setBanner({ tone: 'danger', message: error.message })
+    }
+  }, [api, token])
+
+  useEffect(() => {
+    const t = window.setTimeout(() => refreshWorkspace(), 0)
+    return () => window.clearTimeout(t)
+  }, [refreshWorkspace])
+
+  useEffect(() => {
+    if (currentSection === 'students' && token) {
+      const t = window.setTimeout(() => searchStudents(), 0)
+      return () => window.clearTimeout(t)
+    }
+  }, [currentSection, searchStudents, token])
+
+  useEffect(() => {
+    if (selectedEventId && token) {
+      const t = window.setTimeout(() => fetchEventApplications(selectedEventId), 0)
+      return () => window.clearTimeout(t)
+    }
+  }, [fetchEventApplications, selectedEventId, token])
+
+  useEffect(() => {
+    if (isAdmin && ['discover','saved','events','applications','students','profile'].includes(currentSection)) {
+      const t = window.setTimeout(() => setCurrentSection('overview'), 0)
+      return () => window.clearTimeout(t)
+    }
+  }, [currentSection, isAdmin])
 
   function resetEventComposer() {
     setEventForm(defaultEventForm)
@@ -267,32 +214,839 @@ function WorkspacePage() {
         required_skills: toArray(eventForm.required_skills),
       }
     }
-
     const payload = {}
-
     if (eventForm.title.trim()) payload.title = eventForm.title.trim()
     if (eventForm.event_name.trim()) payload.event_name = eventForm.event_name.trim()
     if (eventForm.description.trim()) payload.description = eventForm.description.trim()
     if (eventForm.deadline) payload.deadline = eventForm.deadline
     if (eventForm.category) payload.category = eventForm.category
-    if (eventForm.number_of_positions !== '' && Number(eventForm.number_of_positions) > 0) {
+    if (eventForm.number_of_positions !== '' && Number(eventForm.number_of_positions) > 0)
       payload.number_of_positions = Number(eventForm.number_of_positions)
-    }
-
     const skills = toArray(eventForm.required_skills)
-    if (skills.length) {
-      payload.required_skills = skills
-    }
-
+    if (skills.length) payload.required_skills = skills
     return payload
   }
+
+  async function handleEventSubmit(event) {
+    event.preventDefault()
+    const isEditEvent = eventMode === 'edit-event'
+    const isEditDraft = eventMode === 'edit-draft'
+    setBusy(isEditEvent ? 'event-update' : isEditDraft ? 'draft-submit' : 'event')
+    try {
+      if (isEditEvent) {
+        await api.put(`/events/${editingEventId}`, buildEventPayload(), { token })
+        setBanner({ tone: 'success', message: 'Event updated and sent for admin review.' })
+      } else if (isEditDraft) {
+        await api.post(`/event-drafts/${editingDraftId}/submit`, {}, { token })
+        setBanner({ tone: 'success', message: 'Draft submitted for admin approval.' })
+      } else {
+        await api.post('/events', buildEventPayload(), { token })
+        setBanner({ tone: 'success', message: 'Event submitted for admin approval.' })
+      }
+      resetEventComposer()
+      await refreshWorkspace()
+    } catch (error) {
+      const fieldErrors = error.payload?.errors?.map(e => e.message).join(' ')
+      setBanner({ tone: 'danger', message: fieldErrors || error.message })
+    } finally { setBusy('') }
+  }
+
+  async function handleSaveDraft() {
+    const payload = buildEventPayload({ allowPartial: true })
+    if (Object.keys(payload).length === 0) {
+      setBanner({ tone: 'danger', message: 'Add at least one field before saving a draft.' })
+      return
+    }
+    setBusy(eventMode === 'edit-draft' ? 'draft-update' : 'draft')
+    try {
+      if (eventMode === 'edit-draft') {
+        await api.put(`/event-drafts/${editingDraftId}`, payload, { token })
+        setBanner({ tone: 'success', message: 'Draft updated.' })
+      } else {
+        await api.post('/event-drafts', payload, { token })
+        setBanner({ tone: 'success', message: 'Draft saved.' })
+      }
+      resetEventComposer()
+      await refreshWorkspace()
+    } catch (error) {
+      setBanner({ tone: 'danger', message: error.message })
+    } finally { setBusy('') }
+  }
+
+  async function handleDeleteDraft(draftId) {
+    setBusy(`draft-delete-${draftId}`)
+    try {
+      await api.delete(`/event-drafts/${draftId}`, { token })
+      if (editingDraftId === draftId) resetEventComposer()
+      setBanner({ tone: 'success', message: 'Draft deleted.' })
+      await refreshWorkspace()
+    } catch (error) {
+      setBanner({ tone: 'danger', message: error.message })
+    } finally { setBusy('') }
+  }
+
+  async function handleQuickSubmitDraft(draftId) {
+    setBusy(`draft-submit-${draftId}`)
+    try {
+      await api.post(`/event-drafts/${draftId}/submit`, {}, { token })
+      if (editingDraftId === draftId) resetEventComposer()
+      setBanner({ tone: 'success', message: 'Draft submitted for approval.' })
+      await refreshWorkspace()
+    } catch (error) {
+      setBanner({ tone: 'danger', message: error.message })
+    } finally { setBusy('') }
+  }
+
+  async function handleUpdateProfile(event) {
+    event.preventDefault()
+    setBusy('profile')
+    try {
+      const payload = {}
+      if (profileForm.bio.trim()) payload.bio = profileForm.bio.trim()
+      if (profileForm.department.trim()) payload.department = profileForm.department.trim()
+      if (profileForm.year !== '') payload.year = Number(profileForm.year)
+      if (profileForm.profile_picture.trim()) payload.profile_picture = profileForm.profile_picture.trim()
+      if (toArray(profileForm.skills).length) payload.skills = toArray(profileForm.skills)
+      if (toArray(profileForm.interests).length) payload.interests = toArray(profileForm.interests)
+      if (Object.keys(payload).length === 0) {
+        setBanner({ tone: 'danger', message: 'Add at least one profile field.' })
+        setBusy(''); return
+      }
+      await api.put('/profile', payload, { token })
+      setBanner({ tone: 'success', message: 'Profile saved.' })
+      await refreshWorkspace()
+    } catch (error) {
+      setBanner({ tone: 'danger', message: error.message })
+    } finally { setBusy('') }
+  }
+
+  async function handleApplyToEvent() {
+    setBusy('apply')
+    try {
+      await api.post('/applications', { event_id: applyModal.eventId, message: applyMessage }, { token })
+      setApplyModal({ open: false, eventId: '', eventTitle: '' })
+      setApplyMessage('')
+      setBanner({ tone: 'success', message: 'Application submitted.' })
+      await refreshWorkspace()
+    } catch (error) {
+      setBanner({ tone: 'danger', message: error.message })
+    } finally { setBusy('') }
+  }
+
+  async function handleStatusUpdate(applicationId, status) {
+    setBusy(applicationId)
+    try {
+      await api.patch(`/applications/${applicationId}/status`, { status }, { token })
+      setBanner({ tone: 'success', message: `Moved to ${status}.` })
+      await refreshWorkspace()
+      if (selectedEventId) await fetchEventApplications(selectedEventId)
+    } catch (error) {
+      setBanner({ tone: 'danger', message: error.message })
+    } finally { setBusy('') }
+  }
+
+  async function handleAdminReview(eventId, decision) {
+    setBusy(eventId + decision)
+    try {
+      if (decision === 'approve') {
+        await api.patch(`/admin/events/${eventId}/approve`, {}, { token })
+      } else {
+        await api.patch(`/admin/events/${eventId}/reject`, { reason: 'Needs revision.' }, { token })
+      }
+      setBanner({ tone: 'success', message: `Event ${decision}d.` })
+      await refreshWorkspace()
+    } catch (error) {
+      setBanner({ tone: 'danger', message: error.message })
+    } finally { setBusy('') }
+  }
+
+  async function handleNotificationAction(id, action) {
+    setBusy(id + action)
+    try {
+      if (action === 'read') await api.patch(`/notifications/${id}/read`, {}, { token })
+      if (action === 'delete') await api.delete(`/notifications/${id}`, { token })
+      if (action === 'read-all') await api.patch('/notifications/read-all', {}, { token })
+      await refreshWorkspace()
+    } catch (error) {
+      setBanner({ tone: 'danger', message: error.message })
+    } finally { setBusy('') }
+  }
+
+  async function handleToggleSavedEvent(eventId, shouldSave) {
+    setBusy(`save-${eventId}`)
+    try {
+      if (shouldSave) {
+        await api.post(`/events/${eventId}/save`, {}, { token })
+      } else {
+        await api.delete(`/events/${eventId}/save`, { token })
+      }
+      await refreshWorkspace()
+    } catch (error) {
+      setBanner({ tone: 'danger', message: error.message })
+    } finally { setBusy('') }
+  }
+
+  async function handleEmailApplicants(event) {
+    event.preventDefault()
+    if (!selectedEventId) { setBanner({ tone: 'danger', message: 'Select an event first.' }); return }
+    setBusy('email')
+    try {
+      const response = await api.post(`/events/${selectedEventId}/email-applicants`, {
+        subject: emailForm.subject.trim(),
+        message: emailForm.message.trim(),
+        target: emailForm.target,
+      }, { token })
+      setBanner({ tone: 'success', message: response.message || 'Email sent.' })
+      setEmailForm(defaultEmailForm)
+    } catch (error) {
+      setBanner({ tone: 'danger', message: error.message })
+    } finally { setBusy('') }
+  }
+
+  const savedEventIds = new Set(workspace.savedEvents.map(e => e.id))
+  const selectedEvent = workspace.myEvents.find(e => e.id === selectedEventId) || null
+
+  const stats = isAdmin
+    ? [
+        { label: 'Pending Approvals', value: workspace.pendingEvents.length, helper: 'Events awaiting moderation', icon: ShieldCheck },
+        { label: 'Total Events', value: workspace.allAdminEvents.length, helper: 'All events in the system', icon: CalendarPlus2 },
+        { label: 'Unread Alerts', value: unreadCount, helper: 'Recent admin notifications', icon: Bell },
+      ]
+    : [
+        { label: 'Open Events', value: workspace.events.length, helper: 'Live opportunities to explore', icon: Compass },
+        { label: 'My Events', value: workspace.myEvents.length, helper: 'Events you are organizing', icon: CalendarPlus2 },
+        { label: 'Applications', value: workspace.myApplications.length, helper: 'Total submitted applications', icon: Briefcase },
+      ]
+
+  return (
+    <AppShell
+      currentSection={currentSection}
+      onLogout={() => { logout(); navigate('/auth') }}
+      onSectionChange={setCurrentSection}
+      sections={sections}
+      setSidebarOpen={setSidebarOpen}
+      sidebarOpen={sidebarOpen}
+      user={user}
+      unreadCount={unreadCount}
+    >
+      <AlertBanner tone={banner.tone} message={banner.message} onClose={() => setBanner({ tone: 'info', message: '' })} />
+
+      {/* ───── OVERVIEW ───── */}
+      {currentSection === 'overview' && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="page-header">
+            <h1 className="page-title">{isAdmin ? 'Admin Dashboard' : 'My Workspace'}</h1>
+            <p className="page-subtitle">
+              {isAdmin ? 'Monitor platform activity and manage event approvals.' : 'Manage your events, applications, and profile from one place.'}
+            </p>
+          </div>
+
+          <div className="grid-3 mb-6">
+            {stats.map((s) => <StatCard key={s.label} {...s} />)}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <SectionCard title={isAdmin ? 'Pending Review' : 'Recent Events'} description="Latest items requiring attention">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {(isAdmin ? workspace.pendingEvents : workspace.events).slice(0, 5).map(item => (
+                  <div key={item.id} style={{
+                    padding: '12px 14px', borderRadius: 10,
+                    background: 'var(--bg-surface-2)', border: '1px solid var(--border)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12
+                  }}>
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</p>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: 2 }}>{item.event_name} · {formatDate(item.deadline)}</p>
+                    </div>
+                    <Pill tone={item.approval_status === 'APPROVED' ? 'success' : item.approval_status === 'REJECTED' ? 'danger' : 'warn'}>
+                      {item.approval_status || item.status}
+                    </Pill>
+                  </div>
+                ))}
+                {(isAdmin ? workspace.pendingEvents : workspace.events).length === 0 && (
+                  <p style={{ fontSize: '0.83rem', color: 'var(--text-tertiary)', padding: '12px 0' }}>Nothing here yet.</p>
+                )}
+              </div>
+            </SectionCard>
+
+            <SectionCard title="Notifications" description="Recent platform activity">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {workspace.notifications.slice(0, 5).map(n => (
+                  <div key={n.id} className={`notif-item ${!n.is_read ? 'unread' : ''}`}>
+                    {!n.is_read && <div className="notif-dot" />}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: '0.83rem', color: 'var(--text-primary)', lineHeight: 1.5 }}>{n.message}</p>
+                      <p style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', marginTop: 3 }}>{formatDateTime(n.created_at)}</p>
+                    </div>
+                  </div>
+                ))}
+                {workspace.notifications.length === 0 && (
+                  <p style={{ fontSize: '0.83rem', color: 'var(--text-tertiary)', padding: '12px 0' }}>No notifications yet.</p>
+                )}
+              </div>
+            </SectionCard>
+          </div>
+        </motion.div>
+      )}
+
+      {/* ───── DISCOVER ───── */}
+      {!isAdmin && currentSection === 'discover' && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="page-header">
+            <h1 className="page-title">Discover Events</h1>
+            <p className="page-subtitle">Browse open opportunities and find your next challenge.</p>
+          </div>
+          <div className="grid-3">
+            {workspace.events.map(event => (
+              <EventCard
+                key={event.id}
+                event={event}
+                isSaved={savedEventIds.has(event.id)}
+                saveBusy={busy === `save-${event.id}`}
+                onToggleSaved={(s) => handleToggleSavedEvent(event.id, s)}
+                onApply={() => setApplyModal({ open: true, eventId: event.id, eventTitle: event.title })}
+              />
+            ))}
+            {workspace.events.length === 0 && (
+              <div style={{ gridColumn: '1/-1' }}>
+                <EmptyState title="No events available" message="Check back soon for new opportunities." icon={Compass} />
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
+
+      {/* ───── SAVED ───── */}
+      {!isAdmin && currentSection === 'saved' && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="page-header">
+            <h1 className="page-title">Saved Events</h1>
+            <p className="page-subtitle">Events you bookmarked for later review.</p>
+          </div>
+          <div className="grid-3">
+            {workspace.savedEvents.map(event => (
+              <EventCard
+                key={event.id}
+                event={event}
+                isSaved
+                saveBusy={busy === `save-${event.id}`}
+                onToggleSaved={(s) => handleToggleSavedEvent(event.id, s)}
+                onApply={() => setApplyModal({ open: true, eventId: event.id, eventTitle: event.title })}
+              />
+            ))}
+            {workspace.savedEvents.length === 0 && (
+              <div style={{ gridColumn: '1/-1' }}>
+                <EmptyState title="No saved events" message="Save events from Discover to track them here." icon={Bookmark} />
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
+
+      {/* ───── MY EVENTS ───── */}
+      {!isAdmin && currentSection === 'events' && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="page-header">
+            <h1 className="page-title">My Events</h1>
+            <p className="page-subtitle">Create, manage, and track your event submissions.</p>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 20, alignItems: 'start' }}>
+            {/* Form */}
+            <SectionCard
+              title={eventMode === 'edit-event' ? 'Edit Event' : eventMode === 'edit-draft' ? 'Finish Draft' : 'Create New Event'}
+              description={eventMode === 'edit-event'
+                ? 'Changes require admin re-approval.'
+                : 'Submit when ready, or save a draft to continue later.'}
+            >
+              <form onSubmit={handleEventSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                  <Field label="Title">
+                    <Input value={eventForm.title} onChange={e => setEventForm({...eventForm, title: e.target.value})} placeholder="e.g. Frontend Developer" required />
+                  </Field>
+                  <Field label="Event Name">
+                    <Input value={eventForm.event_name} onChange={e => setEventForm({...eventForm, event_name: e.target.value})} placeholder="e.g. HackFest 2025" required />
+                  </Field>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
+                  <Field label="Category">
+                    <Select value={eventForm.category} onChange={e => setEventForm({...eventForm, category: e.target.value})}>
+                      <option value="TECH">Technology</option>
+                      <option value="CULTURAL">Cultural</option>
+                      <option value="SPORTS">Sports</option>
+                    </Select>
+                  </Field>
+                  <Field label="Open Positions">
+                    <Input type="number" min="1" value={eventForm.number_of_positions}
+                      onChange={e => setEventForm({...eventForm, number_of_positions: e.target.value})} required />
+                  </Field>
+                  <Field label="Application Deadline">
+                    <Input type="datetime-local" value={eventForm.deadline}
+                      onChange={e => setEventForm({...eventForm, deadline: e.target.value})} required />
+                  </Field>
+                </div>
+                <Field label="Required Skills" hint="Comma-separated: React, Node.js, Figma">
+                  <Input value={eventForm.required_skills} onChange={e => setEventForm({...eventForm, required_skills: e.target.value})} placeholder="React, TypeScript, UI/UX" />
+                </Field>
+                <Field label="Description">
+                  <Textarea value={eventForm.description} onChange={e => setEventForm({...eventForm, description: e.target.value})} required placeholder="Describe the role, responsibilities, and what you're looking for..." />
+                </Field>
+                <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                  <PrimaryButton type="submit" busy={busy === 'event' || busy === 'event-update' || busy === 'draft-submit'}>
+                    {eventMode === 'edit-event' ? 'Save Changes' : eventMode === 'edit-draft' ? 'Submit Draft' : 'Submit Event'}
+                  </PrimaryButton>
+                  {eventMode !== 'edit-event' && (
+                    <SecondaryButton type="button" onClick={handleSaveDraft}
+                      disabled={busy === 'draft' || busy === 'draft-update'}>
+                      Save Draft
+                    </SecondaryButton>
+                  )}
+                  {eventMode !== 'create' && (
+                    <SecondaryButton type="button" onClick={resetEventComposer}>Cancel</SecondaryButton>
+                  )}
+                </div>
+              </form>
+            </SectionCard>
+
+            {/* Right panel */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Drafts */}
+              <SectionCard title="Drafts" description={`${workspace.eventDrafts.length} saved`}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {workspace.eventDrafts.map(draft => (
+                    <div key={draft.id} style={{ padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-surface-2)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+                        <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {draft.title || 'Untitled Draft'}
+                        </p>
+                        <Pill tone="default">Draft</Pill>
+                      </div>
+                      <p style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', marginBottom: 10 }}>
+                        Updated {formatDateTime(draft.updated_at)}
+                      </p>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button type="button" className="btn btn-sm btn-secondary" onClick={() => startEditDraft(draft)}>
+                          <Edit3 size={12} /> Edit
+                        </button>
+                        <button type="button" className="btn btn-sm btn-primary"
+                          onClick={() => handleQuickSubmitDraft(draft.id)}
+                          disabled={busy === `draft-submit-${draft.id}`}>
+                          <Send size={12} /> Submit
+                        </button>
+                        <button type="button" className="btn btn-sm btn-danger"
+                          onClick={() => handleDeleteDraft(draft.id)}
+                          disabled={busy === `draft-delete-${draft.id}`}>
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {workspace.eventDrafts.length === 0 && (
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>No drafts yet.</p>
+                  )}
+                </div>
+              </SectionCard>
+
+              {/* Published events */}
+              <SectionCard title="Published Events" description="Your submitted listings">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {workspace.myEvents.map(event => (
+                    <div key={event.id} style={{
+                      padding: '12px 14px', borderRadius: 10, border: `1px solid ${selectedEventId === event.id ? 'var(--accent)' : 'var(--border)'}`,
+                      background: selectedEventId === event.id ? '#fafaff' : 'var(--bg-surface-2)',
+                      cursor: 'pointer', transition: 'all 0.15s'
+                    }} onClick={() => { setSelectedEventId(event.id); setEmailForm(defaultEmailForm) }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+                        <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.3 }}>{event.title}</p>
+                        <Pill tone={event.approval_status === 'APPROVED' ? 'success' : event.approval_status === 'REJECTED' ? 'danger' : 'warn'}>
+                          {event.approval_status}
+                        </Pill>
+                      </div>
+                      <p style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', marginBottom: 8 }}>Deadline {formatDate(event.deadline)}</p>
+                      <button type="button" className="btn btn-sm btn-secondary" onClick={e => { e.stopPropagation(); startEditEvent(event) }}>
+                        <Edit3 size={12} /> Edit
+                      </button>
+                    </div>
+                  ))}
+                  {workspace.myEvents.length === 0 && (
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>No published events yet.</p>
+                  )}
+                </div>
+              </SectionCard>
+            </div>
+          </div>
+
+          {/* Applications + Email panel */}
+          {selectedEventId && (
+            <div style={{ marginTop: 20, display: 'grid', gridTemplateColumns: '1fr 380px', gap: 20 }}>
+              <SectionCard title="Applications" description={`${workspace.eventApplications.length} received for ${selectedEvent?.title || 'this event'}`}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {workspace.eventApplications.map(app => (
+                    <div key={app.id} className="application-row">
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <Avatar name={app.student?.full_name} size={32} />
+                          <div>
+                            <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>{app.student?.full_name}</p>
+                            <p style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>
+                              {app.student?.profile?.department || '—'} · Year {app.student?.profile?.year || 'N/A'}
+                            </p>
+                          </div>
+                        </div>
+                        <Pill tone={app.status === 'PENDING' ? 'warn' : app.status === 'REJECTED' ? 'danger' : 'success'}>
+                          {app.status}
+                        </Pill>
+                      </div>
+                      {app.message && (
+                        <p style={{ fontSize: '0.83rem', color: 'var(--text-secondary)', marginBottom: 10, lineHeight: 1.5, padding: '8px 12px', background: 'var(--bg-surface-3)', borderRadius: 8 }}>
+                          {app.message}
+                        </p>
+                      )}
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {['SHORTLISTED', 'SELECTED', 'REJECTED', 'COMPLETED'].map(status => (
+                          <button key={status} type="button"
+                            className={`btn btn-sm ${status === 'REJECTED' ? 'btn-danger' : status === 'SELECTED' || status === 'COMPLETED' ? 'btn-primary' : 'btn-secondary'}`}
+                            onClick={() => handleStatusUpdate(app.id, status)}
+                            disabled={busy === app.id}>
+                            {status}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {workspace.eventApplications.length === 0 && (
+                    <EmptyState title="No applications yet" message="Applications will appear here once students respond." icon={Briefcase} />
+                  )}
+                </div>
+              </SectionCard>
+
+              <SectionCard title="Email Applicants" description="Send a message to your applicants">
+                <form onSubmit={handleEmailApplicants} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <Field label="Audience">
+                    <Select value={emailForm.target} onChange={e => setEmailForm({...emailForm, target: e.target.value})}>
+                      <option value="ALL">All applicants</option>
+                      <option value="SHORTLISTED">Shortlisted & selected</option>
+                    </Select>
+                  </Field>
+                  <Field label="Subject">
+                    <Input value={emailForm.subject} onChange={e => setEmailForm({...emailForm, subject: e.target.value})}
+                      placeholder="Important update..." required minLength={3} />
+                  </Field>
+                  <Field label="Message">
+                    <Textarea value={emailForm.message} onChange={e => setEmailForm({...emailForm, message: e.target.value})}
+                      placeholder="Write your message..." required minLength={10} style={{ minHeight: 120 }} />
+                  </Field>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <PrimaryButton type="submit" busy={busy === 'email'} style={{ flex: 1 }}>
+                      <Mail size={14} /> Send Email
+                    </PrimaryButton>
+                    <SecondaryButton type="button" onClick={() => setEmailForm(defaultEmailForm)}>Clear</SecondaryButton>
+                  </div>
+                </form>
+              </SectionCard>
+            </div>
+          )}
+        </motion.div>
+      )}
+
+      {/* ───── APPLICATIONS ───── */}
+      {!isAdmin && currentSection === 'applications' && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="page-header">
+            <h1 className="page-title">My Applications</h1>
+            <p className="page-subtitle">Track the status of all your event applications.</p>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {workspace.myApplications.map(app => (
+              <div key={app.id} className="application-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                    <p style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {app.event?.title}
+                    </p>
+                    <Pill tone={app.status === 'PENDING' ? 'warn' : app.status === 'REJECTED' ? 'danger' : 'success'}>
+                      {app.status}
+                    </Pill>
+                  </div>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>{app.event?.organizer?.full_name}</p>
+                  {app.message && (
+                    <p style={{ fontSize: '0.83rem', color: 'var(--text-secondary)', marginTop: 8, lineHeight: 1.5 }}>{app.message}</p>
+                  )}
+                </div>
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <p style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>Applied {formatDate(app.created_at)}</p>
+                </div>
+              </div>
+            ))}
+            {workspace.myApplications.length === 0 && (
+              <EmptyState title="No applications yet" message="Discover events and submit your first application." icon={Briefcase} />
+            )}
+          </div>
+        </motion.div>
+      )}
+
+      {/* ───── STUDENTS ───── */}
+      {!isAdmin && currentSection === 'students' && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="page-header">
+            <h1 className="page-title">Student Directory</h1>
+            <p className="page-subtitle">Search and discover students by skills, department, and year.</p>
+          </div>
+          <SectionCard className="mb-5">
+            <form onSubmit={searchStudents} style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+              <SearchInput value={studentFilters.search} onChange={e => setStudentFilters({...studentFilters, search: e.target.value})} placeholder="Name or email" />
+              <Input placeholder="Department" value={studentFilters.department} onChange={e => setStudentFilters({...studentFilters, department: e.target.value})} />
+              <Input placeholder="Year" value={studentFilters.year} onChange={e => setStudentFilters({...studentFilters, year: e.target.value})} />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Input placeholder="Skills" value={studentFilters.skills} onChange={e => setStudentFilters({...studentFilters, skills: e.target.value})} style={{ flex: 1 }} />
+                <PrimaryButton type="submit" busy={busy === 'students'}>Search</PrimaryButton>
+              </div>
+            </form>
+          </SectionCard>
+          <div className="grid-3">
+            {workspace.students.map(student => (
+              <div key={student.id} className="card" style={{ padding: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+                  <Avatar name={student.full_name} size={42} />
+                  <div>
+                    <p style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>{student.full_name}</p>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>{student.email}</p>
+                  </div>
+                </div>
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 12 }}>
+                  {student.profile?.department || '—'} · Year {student.profile?.year || 'N/A'}
+                </p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                  {toArray(student.profile?.skills).slice(0, 5).map(skill => (
+                    <SkillTag key={skill}>{skill}</SkillTag>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {workspace.students.length === 0 && (
+              <div style={{ gridColumn: '1/-1' }}>
+                <EmptyState title="No students found" message="Try broader search terms or wait for more users to complete profiles." icon={SearchCode} />
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
+
+      {/* ───── NOTIFICATIONS ───── */}
+      {currentSection === 'notifications' && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="page-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <h1 className="page-title">Notifications</h1>
+              <p className="page-subtitle">{unreadCount} unread · {workspace.notifications.length} total</p>
+            </div>
+            {unreadCount > 0 && (
+              <SecondaryButton onClick={() => handleNotificationAction('', 'read-all')}>
+                <CheckCircle size={14} /> Mark all read
+              </SecondaryButton>
+            )}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {workspace.notifications.map(item => (
+              <div key={item.id} className={`notif-item ${!item.is_read ? 'unread' : ''}`}>
+                {!item.is_read && <div className="notif-dot" />}
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: '0.88rem', color: 'var(--text-primary)', lineHeight: 1.5 }}>{item.message}</p>
+                  <p style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', marginTop: 4 }}>{formatDateTime(item.created_at)}</p>
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  {!item.is_read && (
+                    <button type="button" className="btn btn-sm btn-secondary" onClick={() => handleNotificationAction(item.id, 'read')}>
+                      Mark read
+                    </button>
+                  )}
+                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => handleNotificationAction(item.id, 'delete')}>
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              </div>
+            ))}
+            {workspace.notifications.length === 0 && (
+              <EmptyState title="All caught up" message="New activity and status updates will appear here." icon={Bell} />
+            )}
+          </div>
+        </motion.div>
+      )}
+
+      {/* ───── PROFILE ───── */}
+      {!isAdmin && currentSection === 'profile' && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="page-header">
+            <h1 className="page-title">Profile Settings</h1>
+            <p className="page-subtitle">Keep your academic profile and skills up to date.</p>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 20, alignItems: 'start' }}>
+            <SectionCard title="Edit Profile">
+              <form onSubmit={handleUpdateProfile} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <Field label="Bio">
+                  <Textarea value={profileForm.bio} onChange={e => setProfileForm({...profileForm, bio: e.target.value})} placeholder="Tell organizers and collaborators about yourself..." />
+                </Field>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                  <Field label="Department">
+                    <Input value={profileForm.department} onChange={e => setProfileForm({...profileForm, department: e.target.value})} placeholder="e.g. Computer Science" />
+                  </Field>
+                  <Field label="Year of Study">
+                    <Input type="number" min="1" max="5" value={profileForm.year} onChange={e => setProfileForm({...profileForm, year: e.target.value})} placeholder="1–5" />
+                  </Field>
+                </div>
+                <Field label="Profile Picture URL">
+                  <Input value={profileForm.profile_picture} onChange={e => setProfileForm({...profileForm, profile_picture: e.target.value})} placeholder="https://..." />
+                </Field>
+                <Field label="Skills" hint="Comma-separated values">
+                  <Input value={profileForm.skills} onChange={e => setProfileForm({...profileForm, skills: e.target.value})} placeholder="React, Python, Figma, etc." />
+                </Field>
+                <Field label="Interests" hint="Comma-separated values">
+                  <Input value={profileForm.interests} onChange={e => setProfileForm({...profileForm, interests: e.target.value})} placeholder="Machine Learning, Design, etc." />
+                </Field>
+                <PrimaryButton type="submit" busy={busy === 'profile'} style={{ alignSelf: 'flex-start' }}>Save Changes</PrimaryButton>
+              </form>
+            </SectionCard>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <SectionCard title="Profile Preview" description="What others see">
+                <div style={{ textAlign: 'center', padding: '8px 0 16px' }}>
+                  <Avatar name={user?.full_name} size={60} />
+                  <p style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: 12, marginBottom: 2 }}>{user?.full_name}</p>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', marginBottom: 12 }}>
+                    {workspace.profile?.department || 'No department'} · Year {workspace.profile?.year || 'N/A'}
+                  </p>
+                  {workspace.profile?.bio && (
+                    <p style={{ fontSize: '0.83rem', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 14, textAlign: 'left' }}>
+                      {workspace.profile.bio}
+                    </p>
+                  )}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+                    {toArray(workspace.profile?.skills).map(skill => (
+                      <SkillTag key={skill}>{skill}</SkillTag>
+                    ))}
+                  </div>
+                </div>
+                {workspace.experiences.length > 0 && (
+                  <>
+                    <Divider label="Experiences" />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {workspace.experiences.map(exp => (
+                        <div key={exp.id} style={{ padding: '10px 12px', background: 'var(--bg-surface-2)', borderRadius: 10, border: '1px solid var(--border)' }}>
+                          <p style={{ fontSize: '0.83rem', fontWeight: 600, color: 'var(--text-primary)' }}>{exp.title}</p>
+                          <p style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', marginTop: 3 }}>{exp.event_name} · {formatDate(exp.completed_at)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </SectionCard>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* ───── ADMIN ───── */}
+      {isAdmin && currentSection === 'admin' && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="page-header">
+            <h1 className="page-title">Admin Review Queue</h1>
+            <p className="page-subtitle">Approve or reject event submissions from organizers.</p>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            <SectionCard title="Pending Review" description={`${workspace.pendingEvents.length} events awaiting decision`}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {workspace.pendingEvents.map(event => (
+                  <div key={event.id} style={{ padding: '16px', borderRadius: 12, border: '1px solid var(--border)', background: 'var(--bg-surface-2)' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 3 }}>{event.title}</p>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>{event.organizer?.full_name}</p>
+                      </div>
+                      <Pill tone="warn">{event.approval_status}</Pill>
+                    </div>
+                    <p style={{ fontSize: '0.83rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 12 }}>
+                      {event.description}
+                    </p>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <PrimaryButton busy={busy === `${event.id}approve`} onClick={() => handleAdminReview(event.id, 'approve')}>
+                        <CheckCircle size={14} /> Approve
+                      </PrimaryButton>
+                      <SecondaryButton onClick={() => handleAdminReview(event.id, 'reject')}>
+                        <XCircle size={14} /> Reject
+                      </SecondaryButton>
+                    </div>
+                  </div>
+                ))}
+                {workspace.pendingEvents.length === 0 && (
+                  <EmptyState title="Queue is clear" message="No pending events to review right now." icon={CheckCircle} />
+                )}
+              </div>
+            </SectionCard>
+
+            <SectionCard title="All Events" description="Complete moderation ledger">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {workspace.allAdminEvents.map(event => (
+                  <div key={event.id} style={{ padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{event.title}</p>
+                      <p style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', marginTop: 2 }}>{event.organizer?.full_name} · {formatDate(event.created_at)}</p>
+                    </div>
+                    <Pill tone={event.approval_status === 'APPROVED' ? 'success' : event.approval_status === 'REJECTED' ? 'danger' : 'warn'}>
+                      {event.approval_status}
+                    </Pill>
+                  </div>
+                ))}
+                {workspace.allAdminEvents.length === 0 && (
+                  <p style={{ fontSize: '0.83rem', color: 'var(--text-tertiary)' }}>No events in the system yet.</p>
+                )}
+              </div>
+            </SectionCard>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Apply Modal */}
+      {applyModal.open && (
+        <div className="modal-backdrop" onClick={() => setApplyModal({ open: false, eventId: '', eventTitle: '' })}>
+          <motion.div
+            className="modal-box"
+            initial={{ opacity: 0, scale: 0.96, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            onClick={e => e.stopPropagation()}
+          >
+            <h2 className="modal-title">Apply to Event</h2>
+            <p className="modal-subtitle">
+              Submitting application for <strong>{applyModal.eventTitle}</strong>
+            </p>
+            <div style={{ marginBottom: 16 }}>
+              <Field label="Message to Organizer">
+                <Textarea
+                  value={applyMessage}
+                  onChange={e => setApplyMessage(e.target.value)}
+                  placeholder="Tell them why you're a strong fit for this role..."
+                  style={{ minHeight: 110 }}
+                />
+              </Field>
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <SecondaryButton onClick={() => setApplyModal({ open: false, eventId: '', eventTitle: '' })}>
+                Cancel
+              </SecondaryButton>
+              <PrimaryButton busy={busy === 'apply'} onClick={handleApplyToEvent}>
+                <Send size={14} /> Submit Application
+              </PrimaryButton>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AppShell>
+  )
 
   function startEditEvent(eventRecord) {
     setEventMode('edit-event')
     setEditingEventId(eventRecord.id)
     setEditingDraftId('')
     setEventForm(mapRecordToEventForm(eventRecord))
-    setCurrentSection('events')
   }
 
   function startEditDraft(draft) {
@@ -300,863 +1054,66 @@ function WorkspacePage() {
     setEditingDraftId(draft.id)
     setEditingEventId('')
     setEventForm(mapRecordToEventForm(draft))
-    setCurrentSection('events')
   }
-
-  async function handleEventSubmit(event) {
-    event.preventDefault()
-
-    const isEditEvent = eventMode === 'edit-event'
-    const isEditDraft = eventMode === 'edit-draft'
-    setBusy(isEditEvent ? 'event-update' : isEditDraft ? 'draft-submit' : 'event')
-
-    try {
-      if (isEditEvent) {
-        await api.put(`/events/${editingEventId}`, buildEventPayload(), { token })
-        setBanner({ tone: 'success', message: 'Event updated and sent back for admin review.' })
-      } else if (isEditDraft) {
-        await api.post(`/event-drafts/${editingDraftId}/submit`, {}, { token })
-        setBanner({ tone: 'success', message: 'Draft submitted. It is now waiting for admin approval.' })
-      } else {
-        await api.post('/events', buildEventPayload(), { token })
-        setBanner({ tone: 'success', message: 'Event submitted. It is now waiting for admin approval.' })
-      }
-
-      resetEventComposer()
-      await refreshWorkspace()
-    } catch (error) {
-      const fieldErrors = error.payload?.errors?.map((item) => item.message).join(' ')
-      setBanner({ tone: 'danger', message: fieldErrors || error.message })
-    } finally {
-      setBusy('')
-    }
-  }
-
-  async function handleSaveDraft() {
-    const payload = buildEventPayload({ allowPartial: true })
-
-    if (Object.keys(payload).length === 0) {
-      setBanner({ tone: 'danger', message: 'Add at least one event field before saving a draft.' })
-      return
-    }
-
-    setBusy(eventMode === 'edit-draft' ? 'draft-update' : 'draft')
-
-    try {
-      if (eventMode === 'edit-draft') {
-        await api.put(`/event-drafts/${editingDraftId}`, payload, { token })
-        setBanner({ tone: 'success', message: 'Draft updated successfully.' })
-      } else {
-        await api.post('/event-drafts', payload, { token })
-        setBanner({ tone: 'success', message: 'Draft saved successfully.' })
-      }
-
-      resetEventComposer()
-      await refreshWorkspace()
-    } catch (error) {
-      const fieldErrors = error.payload?.errors?.map((item) => item.message).join(' ')
-      setBanner({ tone: 'danger', message: fieldErrors || error.message })
-    } finally {
-      setBusy('')
-    }
-  }
-
-  async function handleDeleteDraft(draftId) {
-    setBusy(`draft-delete-${draftId}`)
-
-    try {
-      await api.delete(`/event-drafts/${draftId}`, { token })
-      if (editingDraftId === draftId) {
-        resetEventComposer()
-      }
-      setBanner({ tone: 'success', message: 'Draft deleted successfully.' })
-      await refreshWorkspace()
-    } catch (error) {
-      setBanner({ tone: 'danger', message: error.message })
-    } finally {
-      setBusy('')
-    }
-  }
-
-  async function handleQuickSubmitDraft(draftId) {
-    setBusy(`draft-submit-${draftId}`)
-
-    try {
-      await api.post(`/event-drafts/${draftId}/submit`, {}, { token })
-      if (editingDraftId === draftId) {
-        resetEventComposer()
-      }
-      setBanner({ tone: 'success', message: 'Draft submitted. It is now waiting for admin approval.' })
-      await refreshWorkspace()
-    } catch (error) {
-      const fieldErrors = error.payload?.errors?.map((item) => item.message).join(' ')
-      setBanner({ tone: 'danger', message: fieldErrors || error.message })
-    } finally {
-      setBusy('')
-    }
-  }
-
-  async function handleUpdateProfile(event) {
-    event.preventDefault()
-    setBusy('profile')
-
-    try {
-      const payload = {}
-
-      if (profileForm.bio.trim()) payload.bio = profileForm.bio.trim()
-      if (profileForm.department.trim()) payload.department = profileForm.department.trim()
-      if (profileForm.year !== '') payload.year = Number(profileForm.year)
-      if (profileForm.profile_picture.trim()) payload.profile_picture = profileForm.profile_picture.trim()
-      if (toArray(profileForm.skills).length) payload.skills = toArray(profileForm.skills)
-      if (toArray(profileForm.interests).length) payload.interests = toArray(profileForm.interests)
-
-      if (Object.keys(payload).length === 0) {
-        setBanner({ tone: 'danger', message: 'Add at least one valid profile field before saving.' })
-        setBusy('')
-        return
-      }
-
-      await api.put('/profile', payload, { token })
-      setBanner({ tone: 'success', message: 'Profile updated successfully.' })
-      await refreshWorkspace()
-    } catch (error) {
-      const fieldErrors = error.payload?.errors?.map((item) => item.message).join(' ')
-      setBanner({ tone: 'danger', message: fieldErrors || error.message })
-    } finally {
-      setBusy('')
-    }
-  }
-
-  async function handleApplyToEvent() {
-    setBusy('apply')
-
-    try {
-      await api.post('/applications', {
-        event_id: applyModal.eventId,
-        message: applyMessage,
-      }, { token })
-      setApplyModal({ open: false, eventId: '', eventTitle: '' })
-      setApplyMessage('')
-      setBanner({ tone: 'success', message: 'Application submitted successfully.' })
-      await refreshWorkspace()
-    } catch (error) {
-      setBanner({ tone: 'danger', message: error.message })
-    } finally {
-      setBusy('')
-    }
-  }
-
-  const fetchEventApplications = useCallback(async (eventId) => {
-    try {
-      const response = await api.get(`/events/${eventId}/applications?limit=20`, { token })
-      setWorkspace((current) => ({
-        ...current,
-        eventApplications: response.data?.applications || [],
-      }))
-    } catch (error) {
-      setBanner({ tone: 'danger', message: error.message })
-    }
-  }, [api, token])
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      refreshWorkspace()
-    }, 0)
-
-    return () => window.clearTimeout(timer)
-  }, [refreshWorkspace])
-
-  useEffect(() => {
-    if (currentSection === 'students' && token) {
-      const timer = window.setTimeout(() => {
-        searchStudents()
-      }, 0)
-
-      return () => window.clearTimeout(timer)
-    }
-  }, [currentSection, searchStudents, token])
-
-  useEffect(() => {
-    if (selectedEventId && token) {
-      const timer = window.setTimeout(() => {
-        fetchEventApplications(selectedEventId)
-      }, 0)
-
-      return () => window.clearTimeout(timer)
-    }
-  }, [fetchEventApplications, selectedEventId, token])
-
-  useEffect(() => {
-    if (isAdmin && ['discover', 'saved', 'events', 'applications', 'students', 'profile'].includes(currentSection)) {
-      const timer = window.setTimeout(() => {
-        setCurrentSection('overview')
-      }, 0)
-
-      return () => window.clearTimeout(timer)
-    }
-  }, [currentSection, isAdmin])
-
-  async function handleStatusUpdate(applicationId, status) {
-    setBusy(applicationId)
-
-    try {
-      await api.patch(`/applications/${applicationId}/status`, { status }, { token })
-      setBanner({ tone: 'success', message: `Application moved to ${status}.` })
-      await refreshWorkspace()
-      if (selectedEventId) {
-        await fetchEventApplications(selectedEventId)
-      }
-    } catch (error) {
-      setBanner({ tone: 'danger', message: error.message })
-    } finally {
-      setBusy('')
-    }
-  }
-
-  async function handleAdminReview(eventId, decision) {
-    setBusy(eventId + decision)
-
-    try {
-      if (decision === 'approve') {
-        await api.patch(`/admin/events/${eventId}/approve`, {}, { token })
-      } else {
-        await api.patch(`/admin/events/${eventId}/reject`, { reason: 'Needs revision before approval.' }, { token })
-      }
-      setBanner({ tone: 'success', message: `Event ${decision}d successfully.` })
-      await refreshWorkspace()
-    } catch (error) {
-      setBanner({ tone: 'danger', message: error.message })
-    } finally {
-      setBusy('')
-    }
-  }
-
-  async function handleNotificationAction(id, action) {
-    setBusy(id + action)
-
-    try {
-      if (action === 'read') {
-        await api.patch(`/notifications/${id}/read`, {}, { token })
-      }
-      if (action === 'delete') {
-        await api.delete(`/notifications/${id}`, { token })
-      }
-      if (action === 'read-all') {
-        await api.patch('/notifications/read-all', {}, { token })
-      }
-      await refreshWorkspace()
-    } catch (error) {
-      setBanner({ tone: 'danger', message: error.message })
-    } finally {
-      setBusy('')
-    }
-  }
-
-  function handleLogout() {
-    logout()
-    navigate('/auth')
-  }
-
-  async function handleToggleSavedEvent(eventId, shouldSave) {
-    setBusy(`save-${eventId}`)
-
-    try {
-      if (shouldSave) {
-        await api.post(`/events/${eventId}/save`, {}, { token })
-        setBanner({ tone: 'success', message: 'Event saved for later.' })
-      } else {
-        await api.delete(`/events/${eventId}/save`, { token })
-        setBanner({ tone: 'success', message: 'Event removed from saved list.' })
-      }
-
-      await refreshWorkspace()
-    } catch (error) {
-      setBanner({ tone: 'danger', message: error.message })
-    } finally {
-      setBusy('')
-    }
-  }
-
-  function handleSelectEvent(eventId) {
-    setSelectedEventId(eventId)
-    setEmailForm(defaultEmailForm)
-  }
-
-  async function handleEmailApplicants(event) {
-    event.preventDefault()
-
-    if (!selectedEventId) {
-      setBanner({ tone: 'danger', message: 'Choose one of your events before sending email.' })
-      return
-    }
-
-    setBusy('email')
-
-    try {
-      const response = await api.post(`/events/${selectedEventId}/email-applicants`, {
-        subject: emailForm.subject.trim(),
-        message: emailForm.message.trim(),
-        target: emailForm.target,
-      }, { token })
-      setBanner({ tone: 'success', message: response.message || 'Email sent successfully.' })
-      setEmailForm(defaultEmailForm)
-    } catch (error) {
-      const fieldErrors = error.payload?.errors?.map((item) => item.message).join(' ')
-      setBanner({ tone: 'danger', message: fieldErrors || error.message })
-    } finally {
-      setBusy('')
-    }
-  }
-
-  const stats = isAdmin
-    ? [
-        { label: 'Pending approvals', value: workspace.pendingEvents.length, helper: 'Events currently waiting for moderation.', icon: ShieldCheck },
-        { label: 'Total events', value: workspace.allAdminEvents.length, helper: 'Full moderation ledger across all states.', icon: CalendarPlus2 },
-        { label: 'Unread notifications', value: workspace.notifications.filter((item) => !item.is_read).length, helper: 'Recent operational updates for the admin workspace.', icon: Bell },
-      ]
-    : [
-        { label: 'Open opportunities', value: workspace.events.length, helper: 'Approved events students can act on right now.', icon: Compass },
-        { label: 'Events you manage', value: workspace.myEvents.length, helper: 'Your personal organizer pipeline.', icon: CalendarPlus2 },
-        { label: 'Unread notifications', value: workspace.notifications.filter((item) => !item.is_read).length, helper: 'Keep replies and approvals from stalling.', icon: Bell },
-      ]
-  const selectedEvent = workspace.myEvents.find((item) => item.id === selectedEventId) || null
-  const savedEventIds = new Set(workspace.savedEvents.map((item) => item.id))
-
-  return (
-    <AppShell
-      currentSection={currentSection}
-      onLogout={handleLogout}
-      onSectionChange={setCurrentSection}
-      sections={sections}
-      setSidebarOpen={setSidebarOpen}
-      sidebarOpen={sidebarOpen}
-      user={user}
-    >
-      <div className="space-y-6">
-        <AlertBanner tone={banner.tone} message={banner.message} onClose={() => setBanner({ tone: 'info', message: '' })} />
-
-        {currentSection === 'overview' ? (
-          <>
-            <section className="grid gap-6 xl:grid-cols-3">
-              {stats.map((item) => (
-                <StatCard key={item.label} {...item} />
-              ))}
-            </section>
-            <SectionCard title="What’s moving today" description="A quick pulse across activity in your workspace.">
-              <div className="grid gap-6 2xl:grid-cols-[1.08fr_0.92fr]">
-                <SnapshotList title={isAdmin ? 'Pending review' : 'Recent events'} items={(isAdmin ? workspace.pendingEvents : workspace.events).slice(0, 4)} type="event" />
-                <SnapshotList title="Latest notifications" items={workspace.notifications.slice(0, 4)} type="notification" />
-              </div>
-            </SectionCard>
-          </>
-        ) : null}
-
-        {!isAdmin && currentSection === 'discover' ? (
-          <SectionCard title="Discover events" description="Public approved events from the backend, ready for students to explore and apply.">
-            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {workspace.events.map((event) => (
-                <EventCard
-                  key={event.id}
-                  event={event}
-                  isSaved={savedEventIds.has(event.id)}
-                  saveBusy={busy === `save-${event.id}`}
-                  onToggleSaved={(shouldSave) => handleToggleSavedEvent(event.id, shouldSave)}
-                  onApply={() => setApplyModal({ open: true, eventId: event.id, eventTitle: event.title })}
-                />
-              ))}
-            </div>
-          </SectionCard>
-        ) : null}
-
-        {!isAdmin && currentSection === 'saved' ? (
-          <SectionCard title="Saved events" description="Keep interesting opportunities here so you can revisit and compare them later.">
-            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {workspace.savedEvents.length ? workspace.savedEvents.map((event) => (
-                <EventCard
-                  key={event.id}
-                  event={event}
-                  isSaved
-                  saveBusy={busy === `save-${event.id}`}
-                  onToggleSaved={(shouldSave) => handleToggleSavedEvent(event.id, shouldSave)}
-                  onApply={() => setApplyModal({ open: true, eventId: event.id, eventTitle: event.title })}
-                />
-              )) : <EmptyState title="No saved events yet" message="Save events from Discover to build your own shortlist." />}
-            </div>
-          </SectionCard>
-        ) : null}
-
-        {!isAdmin && currentSection === 'events' ? (
-          <div className="grid gap-7 2xl:grid-cols-[1.18fr_0.82fr]">
-            <SectionCard
-              title={eventMode === 'edit-event' ? 'Edit event' : eventMode === 'edit-draft' ? 'Finish your draft' : 'Create a new event'}
-              description={eventMode === 'edit-event'
-                ? 'Any updates you save will go back through admin approval before becoming public again.'
-                : eventMode === 'edit-draft'
-                  ? 'Drafts let you work in stages. Submit when everything looks ready.'
-                  : 'Submissions go through admin approval before becoming public.'}
-            >
-              <form onSubmit={handleEventSubmit} className="grid gap-5">
-                <Field label="Title"><Input value={eventForm.title} onChange={(event) => setEventForm({ ...eventForm, title: event.target.value })} required /></Field>
-                <Field label="Event name"><Input value={eventForm.event_name} onChange={(event) => setEventForm({ ...eventForm, event_name: event.target.value })} required /></Field>
-                <div className="grid gap-5 md:grid-cols-3">
-                  <Field label="Category">
-                    <Select value={eventForm.category} onChange={(event) => setEventForm({ ...eventForm, category: event.target.value })}>
-                      <option value="TECH">Tech</option>
-                      <option value="CULTURAL">Cultural</option>
-                      <option value="SPORTS">Sports</option>
-                    </Select>
-                  </Field>
-                  <Field label="Positions">
-                    <Input type="number" min="1" value={eventForm.number_of_positions} onChange={(event) => setEventForm({ ...eventForm, number_of_positions: event.target.value })} required />
-                  </Field>
-                  <Field label="Deadline">
-                    <Input type="datetime-local" value={eventForm.deadline} onChange={(event) => setEventForm({ ...eventForm, deadline: event.target.value })} required />
-                  </Field>
-                </div>
-                <Field label="Required skills" hint="Comma-separated values such as React, Node.js, Design">
-                  <Input value={eventForm.required_skills} onChange={(event) => setEventForm({ ...eventForm, required_skills: event.target.value })} />
-                </Field>
-                <Field label="Description">
-                  <Textarea value={eventForm.description} onChange={(event) => setEventForm({ ...eventForm, description: event.target.value })} required />
-                </Field>
-                <div className="flex flex-wrap gap-3">
-                  <PrimaryButton
-                    type="submit"
-                    busy={busy === 'event' || busy === 'event-update' || busy === 'draft-submit'}
-                  >
-                    {eventMode === 'edit-event' ? 'Save changes' : eventMode === 'edit-draft' ? 'Submit draft' : 'Submit event'}
-                  </PrimaryButton>
-                  {eventMode !== 'edit-event' ? (
-                    <SecondaryButton
-                      type="button"
-                      onClick={handleSaveDraft}
-                      disabled={busy === 'draft' || busy === 'draft-update' || busy === 'draft-submit'}
-                    >
-                      {eventMode === 'edit-draft' ? 'Save draft changes' : 'Save draft'}
-                    </SecondaryButton>
-                  ) : null}
-                  {eventMode !== 'create' ? (
-                    <SecondaryButton type="button" onClick={resetEventComposer} disabled={busy !== ''}>
-                      Cancel
-                    </SecondaryButton>
-                  ) : null}
-                </div>
-              </form>
-            </SectionCard>
-
-            <SectionCard title="Managed events" description="Track approval status and review applications for your listings.">
-              <div className="mb-6">
-                <h3 className="mb-3 font-display text-[1.35rem] font-semibold text-slate-950">Drafts</h3>
-                <div className="space-y-3">
-                  {workspace.eventDrafts.length ? workspace.eventDrafts.map((draft) => (
-                    <div key={draft.id} className="rounded-[20px] border border-slate-200 p-5 dark:border-slate-700">
-                      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <p className="mb-1 font-display text-[1.25rem] font-semibold text-slate-950">{draft.title || 'Untitled draft'}</p>
-                          <p className="mb-0 text-[0.98rem] text-soft">
-                            Last updated {formatDateTime(draft.updated_at)}
-                          </p>
-                        </div>
-                        <Pill tone="default">Draft</Pill>
-                      </div>
-                      <p className="mb-4 text-[1rem] leading-7 text-soft">
-                        {draft.description || 'Keep building this event when you are ready.'}
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        <PrimaryButton type="button" onClick={() => startEditDraft(draft)}>Edit draft</PrimaryButton>
-                        <SecondaryButton
-                          type="button"
-                          onClick={() => handleQuickSubmitDraft(draft.id)}
-                          disabled={busy === `draft-submit-${draft.id}`}
-                        >
-                          Quick submit
-                        </SecondaryButton>
-                        <SecondaryButton
-                          type="button"
-                          onClick={() => handleDeleteDraft(draft.id)}
-                          disabled={busy === `draft-delete-${draft.id}`}
-                        >
-                          Delete
-                        </SecondaryButton>
-                      </div>
-                    </div>
-                  )) : <EmptyState title="No drafts yet" message="Use Save draft to start building an event without submitting it yet." />}
-                </div>
-              </div>
-
-              <div className="border-t border-slate-200 pt-6 dark:border-slate-800">
-                <h3 className="mb-3 font-display text-[1.35rem] font-semibold text-slate-950">Published and submitted events</h3>
-              <div className="space-y-3">
-                {workspace.myEvents.length ? workspace.myEvents.map((event) => (
-                  <div
-                    key={event.id}
-                    className={`rounded-[20px] border p-6 transition ${
-                      selectedEventId === event.id
-                        ? 'border-brand-400 bg-brand-50 dark:bg-brand-500/10'
-                        : 'border-slate-200 dark:border-slate-700'
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => handleSelectEvent(event.id)}
-                      className="w-full text-left"
-                    >
-                    <div className="mb-3 flex flex-wrap items-center gap-2">
-                      <Pill tone="info">{event.category}</Pill>
-                      <Pill tone={event.approval_status === 'APPROVED' ? 'success' : event.approval_status === 'REJECTED' ? 'danger' : 'warn'}>
-                        {event.approval_status}
-                      </Pill>
-                    </div>
-                    <h3 className="mb-2 font-display text-[1.45rem] font-semibold text-slate-950">{event.title}</h3>
-                    <p className="mb-3 text-[1rem] leading-7 text-soft">{event.description}</p>
-                    <p className="mb-0 text-[0.95rem] font-medium text-soft">Deadline {formatDate(event.deadline)}</p>
-                    </button>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <SecondaryButton type="button" onClick={() => startEditEvent(event)}>
-                        Edit event
-                      </SecondaryButton>
-                    </div>
-                  </div>
-                )) : <EmptyState title="No managed events yet" message="Create your first opportunity to start receiving applications." />}
-              </div>
-              </div>
-
-              {selectedEventId ? (
-                <div className="mt-5 border-t border-slate-200 pt-5 dark:border-slate-800">
-                  <h3 className="mb-3 font-display text-lg font-semibold">Applications</h3>
-                  <div className="space-y-3">
-                    {workspace.eventApplications.length ? workspace.eventApplications.map((application) => (
-                      <div key={application.id} className="rounded-[20px] border border-slate-200 p-5 dark:border-slate-700">
-                        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                              <p className="mb-1 text-[1.05rem] font-semibold text-slate-950">{application.student?.full_name}</p>
-                              <p className="mb-0 text-[0.98rem] text-soft">{application.student?.profile?.department || 'Department pending'} • Year {application.student?.profile?.year || 'NA'}</p>
-                          </div>
-                          <Pill tone={application.status === 'PENDING' ? 'warn' : application.status === 'REJECTED' ? 'danger' : 'success'}>
-                            {application.status}
-                          </Pill>
-                        </div>
-                        <p className="text-[1rem] leading-7 text-soft">{application.message || 'No note attached.'}</p>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {['SHORTLISTED', 'SELECTED', 'REJECTED', 'COMPLETED'].map((status) => (
-                            <SecondaryButton
-                              key={status}
-                              onClick={() => handleStatusUpdate(application.id, status)}
-                              disabled={busy === application.id}
-                              className="text-[0.92rem]"
-                            >
-                              {status}
-                            </SecondaryButton>
-                          ))}
-                        </div>
-                      </div>
-                    )) : <EmptyState title="No applications yet" message="Applications will appear here after students respond to your event." />}
-                  </div>
-
-                  <div className="mt-6 rounded-[20px] border border-slate-200 bg-slate-50/70 p-6 dark:border-slate-700 dark:bg-slate-900/40">
-                    <div className="mb-4 flex items-start gap-3">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600 dark:text-brand-300">
-                        <Mail className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <h3 className="mb-1 font-display text-[1.4rem] font-semibold text-slate-950">Email applicants</h3>
-                        <p className="mb-0 text-[1rem] leading-7 text-soft">
-                          Send an update for {selectedEvent?.title || 'this event'} to all applicants or only shortlisted candidates.
-                        </p>
-                      </div>
-                    </div>
-
-                    <form onSubmit={handleEmailApplicants} className="grid gap-5">
-                      <Field label="Audience">
-                        <Select value={emailForm.target} onChange={(event) => setEmailForm({ ...emailForm, target: event.target.value })}>
-                          <option value="ALL">All applicants</option>
-                          <option value="SHORTLISTED">Shortlisted and selected applicants</option>
-                        </Select>
-                      </Field>
-                      <Field label="Subject">
-                        <Input
-                          value={emailForm.subject}
-                          onChange={(event) => setEmailForm({ ...emailForm, subject: event.target.value })}
-                          placeholder="Important update for applicants"
-                          required
-                          minLength={3}
-                        />
-                      </Field>
-                      <Field label="Message">
-                        <Textarea
-                          value={emailForm.message}
-                          onChange={(event) => setEmailForm({ ...emailForm, message: event.target.value })}
-                          placeholder="Share your update, next steps, or schedule details."
-                          required
-                          minLength={10}
-                        />
-                      </Field>
-                      <div className="flex flex-wrap gap-3">
-                        <PrimaryButton type="submit" busy={busy === 'email'}>Send email</PrimaryButton>
-                        <SecondaryButton type="button" onClick={() => setEmailForm(defaultEmailForm)} disabled={busy === 'email'}>
-                          Clear
-                        </SecondaryButton>
-                      </div>
-                    </form>
-                  </div>
-                </div>
-              ) : null}
-            </SectionCard>
-          </div>
-        ) : null}
-
-        {!isAdmin && currentSection === 'applications' ? (
-          <SectionCard title="My applications" description="Track where you stand across your submitted applications.">
-            <div className="space-y-4">
-              {workspace.myApplications.length ? workspace.myApplications.map((application) => (
-                <div key={application.id} className="glass-panel rounded-[20px] p-5">
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h3 className="mb-1 font-display text-[1.35rem] font-semibold text-slate-950">{application.event?.title}</h3>
-                      <p className="mb-0 text-[1rem] text-soft">{application.event?.organizer?.full_name}</p>
-                    </div>
-                    <Pill tone={application.status === 'PENDING' ? 'warn' : application.status === 'REJECTED' ? 'danger' : 'success'}>
-                      {application.status}
-                    </Pill>
-                  </div>
-                  <p className="mb-0 text-[1rem] leading-7 text-soft">{application.message || 'No application note submitted.'}</p>
-                </div>
-              )) : <EmptyState title="No applications yet" message="You have not applied to any events yet. Discover one and send your first application." />}
-            </div>
-          </SectionCard>
-        ) : null}
-
-        {!isAdmin && currentSection === 'students' ? (
-          <SectionCard title="Student search" description="Discover student profiles by skill, department, year, and keyword.">
-            <form onSubmit={searchStudents} className="mb-6 grid gap-5 md:grid-cols-4">
-              <SearchInput value={studentFilters.search} onChange={(event) => setStudentFilters({ ...studentFilters, search: event.target.value })} placeholder="Name or email" />
-              <Input placeholder="Department" value={studentFilters.department} onChange={(event) => setStudentFilters({ ...studentFilters, department: event.target.value })} />
-              <Input placeholder="Year" value={studentFilters.year} onChange={(event) => setStudentFilters({ ...studentFilters, year: event.target.value })} />
-              <div className="flex gap-3">
-                <Input placeholder="Skills" value={studentFilters.skills} onChange={(event) => setStudentFilters({ ...studentFilters, skills: event.target.value })} />
-                <PrimaryButton type="submit" busy={busy === 'students'}>Search</PrimaryButton>
-              </div>
-            </form>
-            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {workspace.students.length ? workspace.students.map((student) => (
-                <div key={student.id} className="glass-panel rounded-[20px] p-6">
-                  <h3 className="mb-1 font-display text-[1.35rem] font-semibold text-slate-950">{student.full_name}</h3>
-                  <p className="mb-2 text-[1rem] text-soft">{student.email}</p>
-                  <p className="mb-4 text-[1rem] text-soft">{student.profile?.department || 'Department pending'} • Year {student.profile?.year || 'NA'}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {toArray(student.profile?.skills).map((skill) => (
-                      <span key={skill} className="rounded-full bg-white/90 px-3.5 py-2 text-[0.9rem] font-medium dark:bg-slate-900/70">{skill}</span>
-                    ))}
-                  </div>
-                </div>
-              )) : <EmptyState title="No students found" message="Try a broader search, or open this after more users complete their profiles." />}
-            </div>
-          </SectionCard>
-        ) : null}
-
-        {currentSection === 'notifications' ? (
-          <SectionCard
-            title="Notifications"
-            description="Actionable updates from applications, approvals, and status changes."
-            action={<SecondaryButton onClick={() => handleNotificationAction('', 'read-all')}>Mark all as read</SecondaryButton>}
-          >
-            <div className="space-y-3">
-              {workspace.notifications.length ? workspace.notifications.map((item) => (
-                <div key={item.id} className="flex flex-col gap-4 rounded-[20px] border border-slate-200 p-5 dark:border-slate-700 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <div className="mb-2 flex items-center gap-2">
-                      <Pill tone={item.is_read ? 'default' : 'info'}>{item.is_read ? 'Read' : 'Unread'}</Pill>
-                      <span className="text-[0.92rem] font-medium text-soft">{formatDateTime(item.created_at)}</span>
-                    </div>
-                    <p className="mb-0 text-[1rem] leading-7 text-slate-950">{item.message}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    {!item.is_read ? <SecondaryButton onClick={() => handleNotificationAction(item.id, 'read')}>Mark read</SecondaryButton> : null}
-                    <SecondaryButton onClick={() => handleNotificationAction(item.id, 'delete')}>Delete</SecondaryButton>
-                  </div>
-                </div>
-              )) : <EmptyState title="No notifications yet" message="New application activity and moderation updates will show up here." />}
-            </div>
-          </SectionCard>
-        ) : null}
-
-        {!isAdmin && currentSection === 'profile' ? (
-          <div className="grid gap-7 xl:grid-cols-[1.05fr_0.95fr]">
-            <SectionCard title="Profile settings" description="Keep your public academic and skills profile current.">
-              <form onSubmit={handleUpdateProfile} className="grid gap-5">
-                <Field label="Bio"><Textarea value={profileForm.bio} onChange={(event) => setProfileForm({ ...profileForm, bio: event.target.value })} /></Field>
-                <div className="grid gap-5 md:grid-cols-2">
-                  <Field label="Department"><Input value={profileForm.department} onChange={(event) => setProfileForm({ ...profileForm, department: event.target.value })} /></Field>
-                  <Field label="Year"><Input type="number" min="1" max="5" value={profileForm.year} onChange={(event) => setProfileForm({ ...profileForm, year: event.target.value })} /></Field>
-                </div>
-                <Field label="Profile picture URL"><Input value={profileForm.profile_picture} onChange={(event) => setProfileForm({ ...profileForm, profile_picture: event.target.value })} /></Field>
-                <Field label="Skills" hint="Comma-separated values"><Input value={profileForm.skills} onChange={(event) => setProfileForm({ ...profileForm, skills: event.target.value })} /></Field>
-                <Field label="Interests" hint="Comma-separated values"><Input value={profileForm.interests} onChange={(event) => setProfileForm({ ...profileForm, interests: event.target.value })} /></Field>
-                <PrimaryButton type="submit" busy={busy === 'profile'}>Save profile</PrimaryButton>
-              </form>
-            </SectionCard>
-
-            <SectionCard title="Profile preview" description="A quick read of what collaborators and organizers can see.">
-              <div className="glass-panel rounded-[32px] p-7">
-                <h3 className="mb-2 font-display text-[2.7rem] leading-tight font-semibold text-slate-950 dark:text-slate-50">{user?.full_name}</h3>
-                <p className="mb-3 text-[1rem] font-medium text-soft">{workspace.profile?.department || 'Department pending'} • Year {workspace.profile?.year || 'NA'}</p>
-                <p className="mb-5 text-[1.05rem] leading-8 text-slate-800 dark:text-slate-300">{workspace.profile?.bio || 'Add a bio so people understand your interests and strengths.'}</p>
-                <div className="mb-4 flex flex-wrap gap-2">
-                  {toArray(workspace.profile?.skills).map((skill) => (
-                    <span key={skill} className="rounded-full bg-white/90 px-3.5 py-2 text-[0.9rem] font-medium dark:bg-slate-900/70">{skill}</span>
-                  ))}
-                </div>
-                <div className="border-t border-slate-200 pt-5 dark:border-slate-700">
-                  <h4 className="mb-3 font-display text-2xl font-semibold text-slate-950 dark:text-slate-50">Experiences</h4>
-                  <div className="space-y-3">
-                    {workspace.experiences.length ? workspace.experiences.map((experience) => (
-                      <div key={experience.id} className="rounded-[18px] bg-slate-50/80 p-5 dark:bg-slate-900/60">
-                        <p className="mb-1 text-[1.02rem] font-semibold text-slate-950">{experience.title}</p>
-                        <p className="mb-0 text-[0.98rem] text-soft">{experience.event_name} • {formatDate(experience.completed_at)}</p>
-                      </div>
-                    )) : <p className="mb-0 text-[1rem] text-soft">Completed events will become profile experiences automatically.</p>}
-                  </div>
-                </div>
-              </div>
-            </SectionCard>
-          </div>
-        ) : null}
-
-        {isAdmin && currentSection === 'admin' ? (
-          <div className="grid gap-7 xl:grid-cols-[0.9fr_1.1fr]">
-            <SectionCard title="Pending approvals" description="Events currently waiting for moderation.">
-              <div className="space-y-3">
-                {workspace.pendingEvents.length ? workspace.pendingEvents.map((event) => (
-                  <div key={event.id} className="rounded-[20px] border border-slate-200 p-5 dark:border-slate-700">
-                    <div className="mb-3 flex items-start justify-between gap-3">
-                      <div>
-                        <h3 className="mb-1 font-display text-[1.35rem] font-semibold text-slate-950">{event.title}</h3>
-                        <p className="mb-0 text-[1rem] text-soft">{event.organizer?.full_name}</p>
-                      </div>
-                      <Pill tone="warn">{event.approval_status}</Pill>
-                    </div>
-                    <p className="mb-3 text-[1rem] leading-7 text-soft">{event.description}</p>
-                    <div className="flex gap-2">
-                      <PrimaryButton busy={busy === `${event.id}approve`} onClick={() => handleAdminReview(event.id, 'approve')}>Approve</PrimaryButton>
-                      <SecondaryButton onClick={() => handleAdminReview(event.id, 'reject')}>Reject</SecondaryButton>
-                    </div>
-                  </div>
-                )) : <EmptyState title="Queue is clear" message="No pending events are waiting for review right now." />}
-              </div>
-            </SectionCard>
-
-            <SectionCard title="Moderation ledger" description="All events across approval states.">
-              <div className="space-y-3">
-                {workspace.allAdminEvents.map((event) => (
-                  <div key={event.id} className="glass-panel rounded-[20px] p-5">
-                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                      <h3 className="mb-0 font-display text-[1.3rem] font-semibold text-slate-950">{event.title}</h3>
-                      <Pill tone={event.approval_status === 'APPROVED' ? 'success' : event.approval_status === 'REJECTED' ? 'danger' : 'warn'}>
-                        {event.approval_status}
-                      </Pill>
-                    </div>
-                    <p className="mb-1 text-[1rem] text-soft">{event.organizer?.full_name}</p>
-                    <p className="mb-0 text-[0.98rem] text-soft">Created {formatDate(event.created_at)}</p>
-                  </div>
-                ))}
-              </div>
-            </SectionCard>
-          </div>
-        ) : null}
-      </div>
-
-      <Modal show={applyModal.open} onHide={() => setApplyModal({ open: false, eventId: '', eventTitle: '' })} centered>
-        <Modal.Header closeButton className="border-0 pb-0">
-          <Modal.Title className="font-display text-2xl font-semibold">Apply to {applyModal.eventTitle}</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <Field label="Message to the organizer">
-            <Textarea value={applyMessage} onChange={(event) => setApplyMessage(event.target.value)} placeholder="Tell them why you are a strong fit." />
-          </Field>
-        </Modal.Body>
-        <Modal.Footer className="border-0">
-          <SecondaryButton onClick={() => setApplyModal({ open: false, eventId: '', eventTitle: '' })}>Cancel</SecondaryButton>
-          <PrimaryButton busy={busy === 'apply'} onClick={handleApplyToEvent}>Send application</PrimaryButton>
-        </Modal.Footer>
-      </Modal>
-    </AppShell>
-  )
 }
 
 function EventCard({ event, isSaved = false, onToggleSaved, onApply, saveBusy = false }) {
   const SaveIcon = isSaved ? BookmarkCheck : Bookmark
+  const catTone = event.category === 'TECH' ? 'info' : event.category === 'SPORTS' ? 'warn' : 'success'
 
   return (
-    <motion.article whileHover={{ y: -4 }} className="glass-panel elevated-hover flex h-full flex-col rounded-[20px] p-6">
-      <div className="mb-5 flex items-center justify-between">
-        <Pill tone={event.category === 'TECH' ? 'info' : event.category === 'CULTURAL' ? 'success' : 'warn'}>
-          {event.category}
-        </Pill>
-        <div className="flex items-center gap-2">
+    <motion.div whileHover={{ y: -3 }} className="event-card">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <Pill tone={catTone}>{event.category}</Pill>
           <Pill tone={event.status === 'OPEN' ? 'success' : 'default'}>{event.status}</Pill>
-          {onToggleSaved ? (
-            <button
-              type="button"
-              onClick={() => onToggleSaved(!isSaved)}
-              disabled={saveBusy}
-              className={`inline-flex h-10 w-10 items-center justify-center rounded-full border transition ${
-                isSaved
-                  ? 'border-brand-200 bg-brand-50 text-brand-600'
-                  : 'border-slate-200 bg-white text-slate-500 hover:border-brand-300 hover:text-brand-600'
-              } disabled:cursor-not-allowed disabled:opacity-60`}
-              aria-label={isSaved ? 'Remove event from saved list' : 'Save event'}
-            >
-              <SaveIcon className="h-4 w-4" />
-            </button>
-          ) : null}
         </div>
+        {onToggleSaved && (
+          <button
+            type="button"
+            onClick={() => onToggleSaved(!isSaved)}
+            disabled={saveBusy}
+            style={{
+              width: 32, height: 32, borderRadius: 8, border: `1px solid ${isSaved ? 'var(--accent-border)' : 'var(--border)'}`,
+              background: isSaved ? 'var(--accent-light)' : 'var(--bg-surface)',
+              color: isSaved ? 'var(--accent)' : 'var(--text-tertiary)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', transition: 'all 0.15s'
+            }}
+            aria-label={isSaved ? 'Unsave' : 'Save'}
+          >
+            <SaveIcon size={14} />
+          </button>
+        )}
       </div>
-      <h3 className="mb-3 font-display text-[1.45rem] font-semibold text-slate-950">{event.title}</h3>
-      <p className="mb-5 text-[1rem] leading-7 text-soft">{event.description}</p>
-      <div className="mb-5 space-y-3 text-[1rem] text-soft">
-        <p className="mb-0"><span className="font-semibold text-slate-900 dark:text-slate-200">Event name:</span> {event.event_name}</p>
-        <p className="mb-0"><span className="font-semibold text-slate-900 dark:text-slate-200">Organizer:</span> {event.organizer?.full_name}</p>
-        <p className="mb-0"><span className="font-semibold text-slate-900 dark:text-slate-200">Deadline:</span> {formatDate(event.deadline)}</p>
+
+      <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6, lineHeight: 1.3 }}>{event.title}</h3>
+      <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.55, marginBottom: 14, flex: 1 }}>{event.description}</p>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 14 }}>
+        <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+          <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Organizer:</span> {event.organizer?.full_name || 'Campus team'}
+        </p>
+        <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+          <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Deadline:</span> {formatDate(event.deadline)}
+        </p>
       </div>
-      <div className="mb-6 flex flex-wrap gap-2">
-        {toArray(event.required_skills).slice(0, 4).map((skill) => (
-          <span key={skill} className="rounded-full bg-white/90 px-3.5 py-2 text-[0.9rem] font-medium dark:bg-slate-900/70">{skill}</span>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 16 }}>
+        {toArray(event.required_skills).slice(0, 4).map(skill => (
+          <SkillTag key={skill}>{skill}</SkillTag>
         ))}
       </div>
-      <div className="mt-auto flex gap-3">
-        {onToggleSaved ? (
-          <SecondaryButton className="min-w-[150px]" onClick={() => onToggleSaved(!isSaved)} disabled={saveBusy}>
+
+      <div style={{ marginTop: 'auto', display: 'flex', gap: 8 }}>
+        {onToggleSaved && (
+          <SecondaryButton onClick={() => onToggleSaved(!isSaved)} disabled={saveBusy} style={{ minWidth: 80 }}>
             {isSaved ? 'Saved' : 'Save'}
           </SecondaryButton>
-        ) : null}
-        <PrimaryButton className="w-full" onClick={onApply}>Apply now</PrimaryButton>
+        )}
+        <PrimaryButton onClick={onApply} style={{ flex: 1 }}>Apply Now</PrimaryButton>
       </div>
-    </motion.article>
-  )
-}
-
-function SnapshotList({ title, items, type }) {
-  return (
-    <div className="rounded-[20px] border border-slate-200/90 bg-white/80 p-8">
-      <h3 className="mb-6 font-display text-[2rem] font-semibold text-slate-950">{title}</h3>
-      <div className="space-y-4">
-        {items.length ? items.map((item) => (
-          <div key={item.id} className="rounded-[18px] bg-slate-100 p-5">
-            {type === 'event' ? (
-              <>
-                <p className="mb-1 text-[1.2rem] font-semibold text-slate-950">{item.title}</p>
-                <p className="mb-0 text-[1rem] text-soft">{item.event_name} • {formatDate(item.deadline)}</p>
-              </>
-            ) : (
-              <>
-                <p className="mb-1 text-[1.05rem] font-semibold text-slate-900">{item.message}</p>
-                <p className="mb-0 text-[0.98rem] text-soft">{formatDateTime(item.created_at)}</p>
-              </>
-            )}
-          </div>
-        )) : <p className="mb-0 text-[1rem] text-slate-700">Nothing here yet.</p>}
-      </div>
-    </div>
+    </motion.div>
   )
 }
 

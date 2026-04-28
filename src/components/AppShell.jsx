@@ -1,7 +1,24 @@
-import { motion } from 'framer-motion'
-import Offcanvas from 'react-bootstrap/Offcanvas'
-import { Bell, Compass, LayoutDashboard, LogOut, Menu, ShieldCheck, Sparkles, UserRound } from 'lucide-react'
-import { AppLogo } from './ui.jsx'
+import { useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  Bell, ChevronRight, LayoutDashboard, LogOut, Menu, X,
+  Compass, CalendarPlus2, Briefcase, SearchCode, UserRound,
+  ShieldCheck, Bookmark, Sparkles
+} from 'lucide-react'
+import { Avatar } from './ui.jsx'
+
+const SECTION_ICONS = {
+  overview: LayoutDashboard,
+  discover: Compass,
+  saved: Bookmark,
+  events: CalendarPlus2,
+  applications: Briefcase,
+  students: SearchCode,
+  notifications: Bell,
+  profile: UserRound,
+  admin: ShieldCheck,
+  extras: Sparkles,
+}
 
 export function AppShell({
   children,
@@ -12,128 +29,175 @@ export function AppShell({
   setSidebarOpen,
   sidebarOpen,
   user,
+  unreadCount = 0,
 }) {
-  const roleLabel = user?.role === 'COLLEGE_ADMIN' ? 'College Admin' : 'Student Organizer'
+  const isAdmin = user?.role === 'COLLEGE_ADMIN'
+  const roleLabel = isAdmin ? 'College Admin' : 'Student / Organizer'
+
+  const initials = user?.full_name
+    ? user.full_name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
+    : 'U'
+
+  const currentSectionLabel = sections.find(s => s.key === currentSection)?.label || 'Workspace'
 
   return (
-    <div className="min-h-screen hero-gradient">
-      <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/92 backdrop-blur-xl">
-        <div className="mx-auto flex w-full max-w-[1800px] items-center justify-between gap-5 px-6 py-5 sm:px-8 lg:px-12 xl:px-14">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              className="glass-panel elevated-hover inline-flex h-12 w-12 items-center justify-center rounded-[18px] lg:hidden"
-              onClick={() => setSidebarOpen(true)}
-              aria-label="Open workspace menu"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-            <AppLogo />
-          </div>
+    <div className="app-shell">
+      {/* Sidebar overlay for mobile */}
+      <AnimatePresence>
+        {sidebarOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setSidebarOpen(false)}
+            style={{
+              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+              zIndex: 39, backdropFilter: 'blur(2px)'
+            }}
+          />
+        )}
+      </AnimatePresence>
 
-          <div className="flex items-center gap-3">
-            <div className="hidden min-w-[260px] rounded-[18px] border border-slate-300 bg-white px-6 py-4 text-right shadow-sm md:block">
-              <p className="mb-0 text-[1.05rem] font-semibold text-slate-900">{user?.full_name}</p>
-              <p className="mb-0 text-[0.78rem] font-semibold uppercase tracking-[0.14em] text-slate-800">{roleLabel}</p>
-            </div>
+      {/* Sidebar */}
+      <nav className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+        {/* Logo */}
+        <div className="sidebar-logo">
+          <div className="sidebar-logo-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
+                stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <div>
+            <div className="sidebar-logo-text">CampusConnect</div>
+            <div className="sidebar-logo-sub">Platform</div>
           </div>
         </div>
-      </header>
 
-      <div className="mx-auto grid w-full max-w-[1800px] grid-cols-1 gap-8 px-6 py-8 sm:px-8 lg:grid-cols-[420px_minmax(0,1fr)] lg:gap-10 lg:px-12 xl:px-14">
-        <aside className="hidden lg:block">
-          <SidebarCard
-            currentSection={currentSection}
-            onLogout={onLogout}
-            onSectionChange={onSectionChange}
-            sections={sections}
-            user={user}
-          />
-        </aside>
+        {/* Nav sections */}
+        <div className="sidebar-section" style={{ flex: 1 }}>
+          <div className="sidebar-section-label">Navigation</div>
 
-        <main className="min-w-0 pt-1">{children}</main>
-      </div>
+          {sections.map((section) => {
+            const Icon = section.icon || SECTION_ICONS[section.key] || Sparkles
+            const active = currentSection === section.key
+            const badge = section.key === 'notifications' && unreadCount > 0
+              ? unreadCount
+              : section.badge
 
-      <Offcanvas show={sidebarOpen} onHide={() => setSidebarOpen(false)} placement="start" className="bg-transparent">
-        <Offcanvas.Header closeButton className="border-b border-slate-200 bg-white" />
-        <Offcanvas.Body className="bg-slate-100 p-4">
-          <SidebarCard
-            currentSection={currentSection}
-            onLogout={() => {
-              setSidebarOpen(false)
-              onLogout()
-            }}
-            onSectionChange={(section) => {
-              setSidebarOpen(false)
-              onSectionChange(section)
-            }}
-            sections={sections}
-            user={user}
-          />
-        </Offcanvas.Body>
-      </Offcanvas>
-    </div>
-  )
-}
+            return (
+              <button
+                key={section.key}
+                type="button"
+                onClick={() => {
+                  onSectionChange(section.key)
+                  setSidebarOpen(false)
+                }}
+                className={`sidebar-nav-item ${active ? 'active' : ''}`}
+              >
+                <Icon className="sidebar-nav-icon" size={17} />
+                <span>{section.label}</span>
+                {badge ? (
+                  <span className="sidebar-badge">{badge}</span>
+                ) : null}
+              </button>
+            )
+          })}
 
-function SidebarCard({ currentSection, onLogout, onSectionChange, sections, user }) {
-  const icons = {
-    overview: LayoutDashboard,
-    discover: Compass,
-    profile: UserRound,
-    notifications: Bell,
-    admin: ShieldCheck,
-    extras: Sparkles,
-  }
-
-  return (
-    <div className="glass-panel rounded-[20px] p-8">
-      <div className="mb-8 rounded-[20px] bg-slate-950 p-9 text-white shadow-lg shadow-slate-950/15">
-        <p className="mb-2 inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-white/75">
-          Workspace
-        </p>
-        <h2 className="mb-3 font-display text-[2.8rem] leading-[1.02] font-semibold tracking-tight">{user?.full_name}</h2>
-        <p className="mb-0 text-[1.05rem] leading-8 text-white/90">
-          One place for campus events, applicants, talent search, and approvals.
-        </p>
-      </div>
-
-      <nav aria-label="Workspace sections" className="space-y-3">
-        {sections.map((section) => {
-          const Icon = section.icon || icons.extras
-          const active = currentSection === section.key
-
-          return (
-            <motion.button
-              key={section.key}
-              whileHover={{ x: 4 }}
+          <div style={{ marginTop: 20 }}>
+            <div className="sidebar-section-label">Account</div>
+            <button
               type="button"
-              onClick={() => onSectionChange(section.key)}
-              className={`flex min-h-16 w-full items-center justify-between rounded-[18px] px-6 py-4 text-left transition ${
-                active
-                  ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/20'
-                  : 'bg-transparent text-slate-800 hover:bg-white hover:text-slate-950'
-              }`}
-              aria-current={active ? 'page' : undefined}
+              onClick={onLogout}
+              className="sidebar-nav-item"
+              style={{ color: 'rgba(239,68,68,0.7)' }}
             >
-              <span className="flex items-center gap-3">
-                <Icon className="h-5 w-5" />
-                <span className="text-[1.05rem] font-semibold">{section.label}</span>
-              </span>
-              {section.badge ? <span className="rounded-full bg-black/10 px-2 py-0.5 text-xs">{section.badge}</span> : null}
-            </motion.button>
-          )
-        })}
+              <LogOut size={17} style={{ opacity: 0.8 }} />
+              <span>Sign out</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Footer user info */}
+        <div className="sidebar-footer">
+          <div className="sidebar-user">
+            <div className="sidebar-avatar">{initials}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="sidebar-user-name">{user?.full_name || 'User'}</div>
+              <div className="sidebar-user-role">{roleLabel}</div>
+            </div>
+            <ChevronRight size={14} style={{ color: 'rgba(255,255,255,0.25)', flexShrink: 0 }} />
+          </div>
+        </div>
       </nav>
 
-      <button
-        type="button"
-        onClick={onLogout}
-        className="mt-8 flex min-h-16 w-full items-center justify-center gap-2 rounded-[18px] border border-slate-300 bg-white px-6 py-4 text-[1.02rem] font-semibold text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:border-rose-300 hover:text-rose-600"
-      >
-        <LogOut className="h-4 w-4" />
-        Sign out
-      </button>
+      {/* Main area */}
+      <div className="main-content">
+        {/* Topbar */}
+        <header className="topbar">
+          <div className="topbar-left">
+            {/* Mobile menu */}
+            <button
+              type="button"
+              className="topbar-icon-btn"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              aria-label="Toggle menu"
+              style={{ display: 'none' }}
+              id="mobile-menu-btn"
+            >
+              {sidebarOpen ? <X size={16} /> : <Menu size={16} />}
+            </button>
+            <button
+              type="button"
+              className="topbar-icon-btn lg-hidden"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              aria-label="Toggle menu"
+            >
+              <Menu size={16} />
+            </button>
+
+            {/* Breadcrumb */}
+            <div className="topbar-breadcrumb">
+              <span>Workspace</span>
+              <ChevronRight size={13} />
+              <span className="topbar-breadcrumb-current">{currentSectionLabel}</span>
+            </div>
+          </div>
+
+          <div className="topbar-right">
+            {/* Notification bell */}
+            <button type="button" className="topbar-icon-btn" aria-label="Notifications">
+              <Bell size={16} />
+              {unreadCount > 0 && <span className="topbar-notif-dot" />}
+            </button>
+
+            {/* Profile chip */}
+            <div className="topbar-profile">
+              <Avatar name={user?.full_name} size={28} />
+              <div className="topbar-profile-info">
+                <div className="topbar-profile-name">{user?.full_name}</div>
+                <div className="topbar-profile-role">{roleLabel}</div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* Page body */}
+        <main>
+          <div className="page-content">
+            {children}
+          </div>
+        </main>
+      </div>
+
+      <style>{`
+        .lg-hidden {
+          display: flex;
+        }
+        @media (min-width: 1025px) {
+          .lg-hidden { display: none !important; }
+        }
+      `}</style>
     </div>
   )
 }

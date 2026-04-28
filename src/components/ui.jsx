@@ -1,109 +1,113 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { LoaderCircle, MoonStar, Search, SunMedium } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Info, Loader2, Search, X } from 'lucide-react'
 
-export function AppLogo() {
+export function AppLogo({ collapsed = false }) {
   return (
-    <div className="flex items-center gap-4">
-      <div className="flex h-14 w-14 items-center justify-center rounded-[18px] bg-gradient-to-br from-brand-400 via-brand-500 to-cyan-500 text-white shadow-lg shadow-brand-500/25">
-        <span className="font-display text-[1.35rem] font-semibold">CC</span>
+    <div className="sidebar-logo">
+      <div className="sidebar-logo-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
       </div>
-      <div>
-        <p className="mb-0 font-display text-[1.35rem] font-semibold tracking-tight text-slate-950 dark:text-slate-50">CampusConnect</p>
-        <p className="mb-0 text-[0.98rem] font-medium text-slate-800 dark:text-slate-300">Student communities, events, and hiring signals.</p>
-      </div>
+      {!collapsed && (
+        <div>
+          <div className="sidebar-logo-text">CampusConnect</div>
+          <div className="sidebar-logo-sub">Enterprise</div>
+        </div>
+      )}
     </div>
-  )
-}
-
-export function ThemeButton({ theme, onToggle }) {
-  const Icon = theme === 'dark' ? SunMedium : MoonStar
-
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className="glass-panel elevated-hover inline-flex h-12 w-12 items-center justify-center rounded-[18px] text-slate-700 dark:text-slate-200 dark:hover:text-brand-300"
-      aria-label="Toggle color theme"
-    >
-      <Icon className="h-5 w-5" />
-    </button>
   )
 }
 
 export function SectionCard({ title, description, action, children, className = '' }) {
   return (
-    <section className={`surface-panel rounded-[20px] p-7 md:p-9 xl:p-10 ${className}`}>
+    <div className={`card ${className}`}>
       {(title || description || action) && (
-        <div className="mb-7 flex flex-col gap-4 border-b border-slate-200/90 pb-6 dark:border-slate-700/80 md:flex-row md:items-center md:justify-between">
+        <div className="card-header">
           <div>
-            {title ? <h2 className="mb-1 font-display text-[1.8rem] leading-tight font-semibold tracking-tight text-slate-950 dark:text-slate-50 md:text-[2rem]">{title}</h2> : null}
-            {description ? <p className="mb-0 text-[1.02rem] leading-8 text-slate-800 dark:text-slate-300">{description}</p> : null}
+            {title && <h2 className="card-title">{title}</h2>}
+            {description && <p className="card-description">{description}</p>}
           </div>
-          {action}
+          {action && <div style={{ flexShrink: 0 }}>{action}</div>}
         </div>
       )}
       {children}
-    </section>
+    </div>
   )
 }
 
-export function StatCard({ label, value, helper, icon: Icon }) {
+export function StatCard({ label, value, helper, icon: Icon, trend }) {
   return (
-    <motion.article
-      whileHover={{ y: -4 }}
-      className="glass-panel elevated-hover min-h-[260px] rounded-[20px] p-8 xl:p-9"
+    <motion.div
+      whileHover={{ y: -2 }}
+      className="stat-card"
     >
-      <div className="mb-5 flex items-center justify-between gap-4">
-        <p className="mb-0 text-[1.05rem] font-semibold text-slate-900">{label}</p>
-        {Icon ? (
-          <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-300">
-            <Icon className="h-5 w-5" />
-          </div>
-        ) : null}
-      </div>
-      <p className="mb-3 font-display text-[3.4rem] font-semibold tracking-tight text-slate-950 xl:text-[4rem]">{value}</p>
-      <p className="mb-0 text-[1.02rem] leading-8 text-slate-800">{helper}</p>
-    </motion.article>
+      {Icon && (
+        <div className="stat-icon">
+          <Icon size={18} />
+        </div>
+      )}
+      <div className="stat-label">{label}</div>
+      <div className="stat-value">{value}</div>
+      <div className="stat-helper">{helper}</div>
+      {trend && (
+        <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{
+            fontSize: '0.72rem', fontWeight: 700,
+            color: trend > 0 ? 'var(--success)' : 'var(--danger)',
+            background: trend > 0 ? 'var(--success-bg)' : 'var(--danger-bg)',
+            padding: '2px 7px', borderRadius: 20
+          }}>
+            {trend > 0 ? '+' : ''}{trend}%
+          </span>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>vs last week</span>
+        </div>
+      )}
+    </motion.div>
   )
 }
 
 export function Pill({ children, tone = 'default' }) {
-  const tones = {
-    default: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
-    success: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
-    warn: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
-    info: 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300',
-    danger: 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300',
+  const toneMap = {
+    default: 'badge-default',
+    success: 'badge-success',
+    warn: 'badge-warning',
+    info: 'badge-info',
+    danger: 'badge-danger',
+    accent: 'badge-accent',
   }
-
-  return (
-    <span className={`inline-flex min-h-8 items-center rounded-full px-3.5 py-1.5 text-xs font-semibold ${tones[tone]}`}>
-      {children}
-    </span>
-  )
+  return <span className={`badge ${toneMap[tone] || 'badge-default'}`}>{children}</span>
 }
 
-export function PrimaryButton({ children, className = '', busy = false, ...props }) {
+export function PrimaryButton({ children, className = '', busy = false, type = 'button', ...props }) {
   return (
     <button
-      type="button"
-      className={`inline-flex min-h-14 items-center justify-center gap-2 rounded-[18px] bg-brand-500 px-6 py-4 text-[1.02rem] font-semibold text-white shadow-lg shadow-brand-500/20 transition hover:-translate-y-0.5 hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
+      type={type}
+      className={`btn btn-primary ${className}`}
       disabled={busy || props.disabled}
       {...props}
     >
-      {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+      {busy ? <div className="spinner" /> : null}
       {children}
     </button>
   )
 }
 
-export function SecondaryButton({ children, className = '', ...props }) {
+export function SecondaryButton({ children, className = '', type = 'button', ...props }) {
   return (
     <button
-      type="button"
-      className={`inline-flex min-h-14 items-center justify-center gap-2 rounded-[18px] border border-slate-300 bg-white px-6 py-4 text-[1.02rem] font-medium text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-300 hover:text-brand-600 dark:border-slate-600 dark:bg-slate-900/80 dark:text-slate-100 dark:hover:border-brand-400 dark:hover:text-brand-300 ${className}`}
+      type={type}
+      className={`btn btn-secondary ${className}`}
       {...props}
     >
+      {children}
+    </button>
+  )
+}
+
+export function DangerButton({ children, className = '', ...props }) {
+  return (
+    <button type="button" className={`btn btn-danger ${className}`} {...props}>
       {children}
     </button>
   )
@@ -111,70 +115,91 @@ export function SecondaryButton({ children, className = '', ...props }) {
 
 export function Field({ label, hint, children }) {
   return (
-    <label className="block space-y-3">
-      <span className="text-[1rem] font-semibold text-slate-950 dark:text-slate-100">{label}</span>
+    <div className="form-field">
+      {label && <label className="form-label">{label}</label>}
       {children}
-      {hint ? <span className="block text-[0.96rem] font-medium text-slate-800 dark:text-slate-300">{hint}</span> : null}
-    </label>
-  )
-}
-
-export function Input(props) {
-  return (
-    <input
-      {...props}
-      className={`w-full min-h-14 rounded-[18px] border border-slate-300 bg-white px-5 py-4 text-[1.02rem] font-medium text-slate-950 outline-none transition placeholder:text-slate-500 focus:border-brand-500 focus:ring-4 focus:ring-brand-100 dark:border-slate-600 dark:bg-slate-900/85 dark:text-slate-50 dark:placeholder:text-slate-400 ${props.className || ''}`}
-    />
-  )
-}
-
-export function Textarea(props) {
-  return (
-    <textarea
-      {...props}
-      className={`min-h-36 w-full rounded-[18px] border border-slate-300 bg-white px-5 py-4 text-[1.02rem] font-medium text-slate-950 outline-none transition placeholder:text-slate-500 focus:border-brand-500 focus:ring-4 focus:ring-brand-100 dark:border-slate-600 dark:bg-slate-900/85 dark:text-slate-50 dark:placeholder:text-slate-400 ${props.className || ''}`}
-    />
-  )
-}
-
-export function Select(props) {
-  return (
-    <select
-      {...props}
-      className={`w-full min-h-14 rounded-[18px] border border-slate-300 bg-white px-5 py-4 text-[1.02rem] font-medium text-slate-950 outline-none transition focus:border-brand-500 focus:ring-4 focus:ring-brand-100 dark:border-slate-600 dark:bg-slate-900/85 dark:text-slate-50 ${props.className || ''}`}
-    />
-  )
-}
-
-export function SearchInput({ value, onChange, placeholder = 'Search' }) {
-  return (
-    <div className="relative">
-      <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" />
-      <Input value={value} onChange={onChange} placeholder={placeholder} className="pl-12" />
+      {hint && <span className="form-hint">{hint}</span>}
     </div>
   )
 }
 
-export function EmptyState({ title, message, action }) {
+export function Input({ className = '', ...props }) {
   return (
-    <div className="rounded-[20px] border border-dashed border-slate-300/90 bg-slate-50 p-10 text-center">
-      <h3 className="mb-2 font-display text-[1.45rem] font-semibold text-slate-950">{title}</h3>
-      <p className="mx-auto mb-4 max-w-md text-base leading-7 text-slate-700">{message}</p>
-      {action}
+    <input
+      {...props}
+      className={`form-input ${className}`}
+    />
+  )
+}
+
+export function Textarea({ className = '', ...props }) {
+  return (
+    <textarea
+      {...props}
+      className={`form-input form-textarea ${className}`}
+    />
+  )
+}
+
+export function Select({ className = '', children, ...props }) {
+  return (
+    <select {...props} className={`form-input form-select ${className}`}>
+      {children}
+    </select>
+  )
+}
+
+export function SearchInput({ value, onChange, placeholder = 'Search...' }) {
+  return (
+    <div className="search-input-wrap">
+      <Search className="search-input-icon" size={16} />
+      <input
+        type="search"
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        className="form-input"
+        style={{ paddingLeft: 38 }}
+      />
+    </div>
+  )
+}
+
+export function EmptyState({ title, message, action, icon: Icon }) {
+  return (
+    <div className="empty-state">
+      <div className="empty-state-icon">
+        {Icon ? <Icon size={24} /> : (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>
+          </svg>
+        )}
+      </div>
+      <div className="empty-state-title">{title}</div>
+      <p className="empty-state-desc">{message}</p>
+      {action && <div style={{ marginTop: 16 }}>{action}</div>}
     </div>
   )
 }
 
 export function AlertBanner({ tone = 'info', message, onClose }) {
-  if (!message) {
-    return null
+  if (!message) return null
+
+  const toneClass = {
+    info: 'alert-info',
+    success: 'alert-success',
+    danger: 'alert-danger',
+    warning: 'alert-warning',
   }
 
-  const tones = {
-    info: 'border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-200',
-    success: 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-200',
-    danger: 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200',
+  const icons = {
+    info: Info,
+    success: CheckCircle2,
+    danger: AlertCircle,
+    warning: AlertCircle,
   }
+
+  const Icon = icons[tone] || Info
 
   return (
     <AnimatePresence>
@@ -182,15 +207,78 @@ export function AlertBanner({ tone = 'info', message, onClose }) {
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -8 }}
-        className={`mb-5 flex items-start justify-between gap-3 rounded-[18px] border px-5 py-4 text-base ${tones[tone]}`}
+        className={`alert ${toneClass[tone] || 'alert-info'}`}
       >
-        <p className="mb-0">{message}</p>
-        {onClose ? (
-          <button type="button" onClick={onClose} className="text-current/70 transition hover:text-current" aria-label="Dismiss message">
-            x
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+          <Icon size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+          <span>{message}</span>
+        </div>
+        {onClose && (
+          <button type="button" className="alert-close" onClick={onClose} aria-label="Dismiss">
+            <X size={14} />
           </button>
-        ) : null}
+        )}
       </motion.div>
     </AnimatePresence>
+  )
+}
+
+export function LoadingScreen({ message = 'Loading...' }) {
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: 'var(--navy-900, #0d1424)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'column',
+      gap: 16
+    }}>
+      <div style={{
+        width: 44, height: 44,
+        background: 'linear-gradient(135deg, #6366f1, #818cf8)',
+        borderRadius: 12,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        boxShadow: '0 8px 24px rgba(99,102,241,0.4)'
+      }}>
+        <Loader2 size={22} color="white" style={{ animation: 'spin 1s linear infinite' }} />
+      </div>
+      <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.83rem', fontWeight: 500 }}>{message}</span>
+    </div>
+  )
+}
+
+export function Divider({ label }) {
+  if (label) {
+    return (
+      <div className="section-divider">{label}</div>
+    )
+  }
+  return <div className="divider" />
+}
+
+export function SkillTag({ children }) {
+  return <span className="skill-tag">{children}</span>
+}
+
+export function Avatar({ name, size = 34 }) {
+  const initials = name
+    ? name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
+    : '??'
+
+  return (
+    <div style={{
+      width: size, height: size,
+      borderRadius: Math.round(size * 0.27),
+      background: 'linear-gradient(135deg, #6366f1, #a78bfa)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      flexShrink: 0,
+      fontSize: size * 0.32,
+      fontWeight: 700,
+      color: 'white',
+      letterSpacing: '0.03em'
+    }}>
+      {initials}
+    </div>
   )
 }
