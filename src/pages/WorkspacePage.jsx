@@ -1,23 +1,38 @@
-import { useCallback, useEffect, useState } from 'react'
-import { motion } from 'framer-motion'
-import Modal from 'react-bootstrap/Modal'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  Activity,
+  BarChart3,
   Bell,
   Bookmark,
-  BookmarkCheck,
   Briefcase,
   CalendarPlus2,
+  CheckCircle2,
   Compass,
   LayoutDashboard,
   Mail,
+  PieChart,
   SearchCode,
   ShieldCheck,
   UserRound,
+  Users,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { SimpleLineChart, SimplePieChart } from '../components/charts/SimpleCharts.jsx'
 import { AppShell } from '../components/AppShell.jsx'
 import {
+  EventCard,
+  InsightPanel,
+  SnapshotList,
+  TrendPanel,
+  BreakdownPanel,
+} from '../components/workspace/analyticsPanels.jsx'
+import {
   AlertBanner,
+  AppModal,
+  Badge,
+  Button,
+  Card,
+  DataTable,
   EmptyState,
   Field,
   Input,
@@ -27,11 +42,22 @@ import {
   SectionCard,
   SecondaryButton,
   Select,
+  SkeletonCard,
   StatCard,
   Textarea,
 } from '../components/ui.jsx'
 import { useApp } from '../context/useApp.js'
 import { formatDate, formatDateTime, toArray } from '../lib/api.js'
+import { mergeDerivedIntoNormalized } from '../lib/dashboardNormalize.js'
+import { buildDerivedAnalytics, buildStudentDerivedAnalytics } from '../lib/workspaceDerived.js'
+import * as adminService from '../services/admin.js'
+import * as applicationsService from '../services/applications.js'
+import * as authService from '../services/auth.js'
+import * as dashboardService from '../services/dashboard.js'
+import * as eventsService from '../services/events.js'
+import * as notificationsService from '../services/notifications.js'
+import * as profileService from '../services/profile.js'
+import * as studentsService from '../services/students.js'
 
 const defaultEventForm = {
   title: '',
@@ -57,6 +83,9 @@ const defaultEmailForm = {
   message: '',
   target: 'ALL',
 }
+
+const BRANCH_OPTIONS = ['CSE', 'IT', 'MECH', 'CIVIL', 'ENTC', 'ECE', 'AIML']
+const YEAR_OPTIONS = ['1', '2', '3', '4']
 
 function toDateTimeLocal(value) {
   if (!value) {
@@ -87,7 +116,7 @@ function mapRecordToEventForm(record) {
 
 function WorkspacePage() {
   const navigate = useNavigate()
-  const { api, logout, persistSession, token, user } = useApp()
+  const { logout, persistSession, token, user } = useApp()
   const userRole = user?.role
   const isAdmin = userRole === 'COLLEGE_ADMIN'
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -104,6 +133,14 @@ function WorkspacePage() {
   const [applyModal, setApplyModal] = useState({ open: false, eventId: '', eventTitle: '' })
   const [applyMessage, setApplyMessage] = useState('')
   const [selectedEventId, setSelectedEventId] = useState('')
+  const [dashboardAnalytics, setDashboardAnalytics] = useState(null)
+  const [dashboardFilters, setDashboardFilters] = useState({
+    department: '',
+    year: '',
+    from: '',
+    to: '',
+  })
+  const [dashboardLoading, setDashboardLoading] = useState(false)
   const [workspace, setWorkspace] = useState({
     events: [],
     myEvents: [],
@@ -119,14 +156,21 @@ function WorkspacePage() {
     eventApplications: [],
   })
 
+  const workspaceRef = useRef(workspace)
+  useEffect(() => {
+    workspaceRef.current = workspace
+  }, [workspace])
+
   const sections = isAdmin
     ? [
         { key: 'overview', label: 'Overview', icon: LayoutDashboard },
+        { key: 'analytics', label: 'Analytics', icon: BarChart3 },
         { key: 'admin', label: 'Admin Queue', icon: ShieldCheck },
         { key: 'notifications', label: 'Notifications', icon: Bell },
       ]
     : [
         { key: 'overview', label: 'Overview', icon: LayoutDashboard },
+        { key: 'dashboard', label: 'Dashboard', icon: PieChart },
         { key: 'discover', label: 'Discover', icon: Compass },
         { key: 'saved', label: 'Saved', icon: Bookmark },
         { key: 'events', label: 'My Events', icon: CalendarPlus2 },
@@ -149,17 +193,19 @@ function WorkspacePage() {
         profileResult,
         pendingEventsResult,
         allAdminEventsResult,
+        analyticsResult,
       ] = await Promise.allSettled([
-        api.get('/auth/me', { token }),
-        api.get('/events?limit=12', { token }),
-        api.get('/events/my-events?limit=20', { token }),
-        api.get('/applications/my-applications?limit=20', { token }),
-        api.get('/notifications?limit=20', { token }),
-        userRole !== 'COLLEGE_ADMIN' ? api.get('/events/saved?limit=30', { token }) : Promise.resolve(null),
-        userRole !== 'COLLEGE_ADMIN' ? api.get('/event-drafts/my-drafts?limit=20', { token }) : Promise.resolve(null),
-        api.get('/profile', { token }),
-        userRole === 'COLLEGE_ADMIN' ? api.get('/admin/events/pending?limit=20', { token }) : Promise.resolve(null),
-        userRole === 'COLLEGE_ADMIN' ? api.get('/admin/events?limit=20', { token }) : Promise.resolve(null),
+        authService.fetchMe(token),
+        eventsService.fetchPublicEvents(token, { limit: 12 }),
+        eventsService.fetchMyEvents(token, 20),
+        applicationsService.fetchMyApplications(token, 20),
+        notificationsService.fetchNotifications(token, 20),
+        userRole !== 'COLLEGE_ADMIN' ? eventsService.fetchSavedEvents(token, 30) : Promise.resolve(null),
+        userRole !== 'COLLEGE_ADMIN' ? eventsService.fetchEventDrafts(token, 20) : Promise.resolve(null),
+        profileService.fetchProfile(token),
+        userRole === 'COLLEGE_ADMIN' ? adminService.fetchPendingEvents(token, 20) : Promise.resolve(null),
+        userRole === 'COLLEGE_ADMIN' ? adminService.fetchAllAdminEvents(token, 20) : Promise.resolve(null),
+        dashboardService.fetchDashboardAnalytics(token, {}),
       ])
 
       const requiredFailures = [me, publicEvents, myEvents, myApplications, notifications]
@@ -180,15 +226,39 @@ function WorkspacePage() {
       const pendingEventsData = pendingEventsResult.status === 'fulfilled' ? pendingEventsResult.value : null
       const allAdminEventsData = allAdminEventsResult.status === 'fulfilled' ? allAdminEventsResult.value : null
 
+      const myApps = myApplicationsData.data?.applications || []
+      const eventsList = publicEventsData.data?.events || []
+      const savedList = savedEventsData?.data?.events || []
+      const notifList = notificationsData.data?.notifications || []
+      const adminEventsList = allAdminEventsData?.data?.events || []
+
+      const dashNorm = analyticsResult.status === 'fulfilled' ? analyticsResult.value : null
+
+      if (userRole === 'COLLEGE_ADMIN') {
+        const derived = buildDerivedAnalytics({
+          notifications: notifList,
+          allAdminEvents: adminEventsList,
+        })
+        setDashboardAnalytics(dashNorm ? mergeDerivedIntoNormalized(dashNorm, derived) : derived)
+      } else {
+        const derived = buildStudentDerivedAnalytics({
+          myApplications: myApps,
+          events: eventsList,
+          savedEvents: savedList,
+          notifications: notifList,
+        })
+        setDashboardAnalytics(dashNorm ? mergeDerivedIntoNormalized(dashNorm, derived) : derived)
+      }
+
       const nextUser = meData.data?.user || user
       if (
-        nextUser &&
-        (
-          nextUser.id !== user?.id ||
-          nextUser.role !== user?.role ||
-          nextUser.full_name !== user?.full_name ||
-          nextUser.email !== user?.email ||
-          nextUser.status !== user?.status
+        nextUser
+        && (
+          nextUser.id !== user?.id
+          || nextUser.role !== user?.role
+          || nextUser.full_name !== user?.full_name
+          || nextUser.email !== user?.email
+          || nextUser.status !== user?.status
         )
       ) {
         persistSession(token, nextUser)
@@ -197,12 +267,12 @@ function WorkspacePage() {
         ...current,
         events: publicEventsData.data?.events || [],
         myEvents: myEventsData.data?.events || [],
-        myApplications: myApplicationsData.data?.applications || [],
-        notifications: notificationsData.data?.notifications || [],
-        savedEvents: savedEventsData?.data?.events || [],
+        myApplications: myApps,
+        notifications: notifList,
+        savedEvents: savedList,
         eventDrafts: draftsData?.data?.drafts || [],
         pendingEvents: pendingEventsData?.data?.events || [],
-        allAdminEvents: allAdminEventsData?.data?.events || [],
+        allAdminEvents: adminEventsList,
         profile: profileData?.data?.profile || null,
         experiences: profileData?.data?.experiences || [],
       }))
@@ -224,7 +294,36 @@ function WorkspacePage() {
         navigate('/auth')
       }
     }
-  }, [api, logout, navigate, persistSession, token, user, userRole])
+  }, [logout, navigate, persistSession, token, user, userRole])
+
+  const reloadDashboard = useCallback(async () => {
+    setDashboardLoading(true)
+    try {
+      const dashNorm = await dashboardService.fetchDashboardAnalytics(token, {
+        department: dashboardFilters.department || undefined,
+        year: dashboardFilters.year || undefined,
+        from: dashboardFilters.from || undefined,
+        to: dashboardFilters.to || undefined,
+      })
+
+      const ws = workspaceRef.current
+
+      if (userRole === 'COLLEGE_ADMIN') {
+        const derived = buildDerivedAnalytics({
+          notifications: ws.notifications,
+          allAdminEvents: ws.allAdminEvents,
+        })
+        setDashboardAnalytics(dashNorm ? mergeDerivedIntoNormalized(dashNorm, derived) : derived)
+      } else {
+        const derived = buildStudentDerivedAnalytics(ws)
+        setDashboardAnalytics(dashNorm ? mergeDerivedIntoNormalized(dashNorm, derived) : derived)
+      }
+    } catch {
+      setBanner({ tone: 'danger', message: 'Could not refresh dashboard filters.' })
+    } finally {
+      setDashboardLoading(false)
+    }
+  }, [dashboardFilters, token, userRole])
 
   const searchStudents = useCallback(async (event) => {
     if (event) event.preventDefault()
@@ -237,7 +336,7 @@ function WorkspacePage() {
     toArray(studentFilters.skills).forEach((skill) => query.append('skills', skill))
 
     try {
-      const response = await api.get(`/students/search?${query.toString()}`, { token })
+      const response = await studentsService.searchStudents(query.toString(), token)
       setWorkspace((current) => ({
         ...current,
         students: response.data?.students || [],
@@ -247,7 +346,7 @@ function WorkspacePage() {
     } finally {
       setBusy('')
     }
-  }, [api, studentFilters, token])
+  }, [studentFilters, token])
 
   function resetEventComposer() {
     setEventForm(defaultEventForm)
@@ -312,13 +411,13 @@ function WorkspacePage() {
 
     try {
       if (isEditEvent) {
-        await api.put(`/events/${editingEventId}`, buildEventPayload(), { token })
+        await eventsService.updateEvent(editingEventId, buildEventPayload(), token)
         setBanner({ tone: 'success', message: 'Event updated and sent back for admin review.' })
       } else if (isEditDraft) {
-        await api.post(`/event-drafts/${editingDraftId}/submit`, {}, { token })
+        await eventsService.submitDraft(editingDraftId, token)
         setBanner({ tone: 'success', message: 'Draft submitted. It is now waiting for admin approval.' })
       } else {
-        await api.post('/events', buildEventPayload(), { token })
+        await eventsService.createEvent(buildEventPayload(), token)
         setBanner({ tone: 'success', message: 'Event submitted. It is now waiting for admin approval.' })
       }
 
@@ -344,10 +443,10 @@ function WorkspacePage() {
 
     try {
       if (eventMode === 'edit-draft') {
-        await api.put(`/event-drafts/${editingDraftId}`, payload, { token })
+        await eventsService.updateDraft(editingDraftId, payload, token)
         setBanner({ tone: 'success', message: 'Draft updated successfully.' })
       } else {
-        await api.post('/event-drafts', payload, { token })
+        await eventsService.saveDraft(payload, token)
         setBanner({ tone: 'success', message: 'Draft saved successfully.' })
       }
 
@@ -365,7 +464,7 @@ function WorkspacePage() {
     setBusy(`draft-delete-${draftId}`)
 
     try {
-      await api.delete(`/event-drafts/${draftId}`, { token })
+      await eventsService.deleteDraft(draftId, token)
       if (editingDraftId === draftId) {
         resetEventComposer()
       }
@@ -382,7 +481,7 @@ function WorkspacePage() {
     setBusy(`draft-submit-${draftId}`)
 
     try {
-      await api.post(`/event-drafts/${draftId}/submit`, {}, { token })
+      await eventsService.submitDraft(draftId, token)
       if (editingDraftId === draftId) {
         resetEventComposer()
       }
@@ -416,7 +515,7 @@ function WorkspacePage() {
         return
       }
 
-      await api.put('/profile', payload, { token })
+      await profileService.updateProfile(payload, token)
       setBanner({ tone: 'success', message: 'Profile updated successfully.' })
       await refreshWorkspace()
     } catch (error) {
@@ -431,10 +530,10 @@ function WorkspacePage() {
     setBusy('apply')
 
     try {
-      await api.post('/applications', {
+      await applicationsService.createApplication({
         event_id: applyModal.eventId,
         message: applyMessage,
-      }, { token })
+      }, token)
       setApplyModal({ open: false, eventId: '', eventTitle: '' })
       setApplyMessage('')
       setBanner({ tone: 'success', message: 'Application submitted successfully.' })
@@ -448,7 +547,7 @@ function WorkspacePage() {
 
   const fetchEventApplications = useCallback(async (eventId) => {
     try {
-      const response = await api.get(`/events/${eventId}/applications?limit=20`, { token })
+      const response = await eventsService.fetchEventApplications(eventId, token, 20)
       setWorkspace((current) => ({
         ...current,
         eventApplications: response.data?.applications || [],
@@ -456,7 +555,7 @@ function WorkspacePage() {
     } catch (error) {
       setBanner({ tone: 'danger', message: error.message })
     }
-  }, [api, token])
+  }, [token])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -487,7 +586,7 @@ function WorkspacePage() {
   }, [fetchEventApplications, selectedEventId, token])
 
   useEffect(() => {
-    if (isAdmin && ['discover', 'saved', 'events', 'applications', 'students', 'profile'].includes(currentSection)) {
+    if (isAdmin && ['discover', 'saved', 'events', 'applications', 'students', 'profile', 'dashboard'].includes(currentSection)) {
       const timer = window.setTimeout(() => {
         setCurrentSection('overview')
       }, 0)
@@ -500,7 +599,7 @@ function WorkspacePage() {
     setBusy(applicationId)
 
     try {
-      await api.patch(`/applications/${applicationId}/status`, { status }, { token })
+      await applicationsService.updateApplicationStatus(applicationId, status, token)
       setBanner({ tone: 'success', message: `Application moved to ${status}.` })
       await refreshWorkspace()
       if (selectedEventId) {
@@ -518,9 +617,9 @@ function WorkspacePage() {
 
     try {
       if (decision === 'approve') {
-        await api.patch(`/admin/events/${eventId}/approve`, {}, { token })
+        await adminService.approveEvent(eventId, token)
       } else {
-        await api.patch(`/admin/events/${eventId}/reject`, { reason: 'Needs revision before approval.' }, { token })
+        await adminService.rejectEvent(eventId, token)
       }
       setBanner({ tone: 'success', message: `Event ${decision}d successfully.` })
       await refreshWorkspace()
@@ -536,13 +635,13 @@ function WorkspacePage() {
 
     try {
       if (action === 'read') {
-        await api.patch(`/notifications/${id}/read`, {}, { token })
+        await notificationsService.markNotificationRead(id, token)
       }
       if (action === 'delete') {
-        await api.delete(`/notifications/${id}`, { token })
+        await notificationsService.deleteNotification(id, token)
       }
       if (action === 'read-all') {
-        await api.patch('/notifications/read-all', {}, { token })
+        await notificationsService.markAllRead(token)
       }
       await refreshWorkspace()
     } catch (error) {
@@ -562,10 +661,10 @@ function WorkspacePage() {
 
     try {
       if (shouldSave) {
-        await api.post(`/events/${eventId}/save`, {}, { token })
+        await eventsService.saveEvent(eventId, token)
         setBanner({ tone: 'success', message: 'Event saved for later.' })
       } else {
-        await api.delete(`/events/${eventId}/save`, { token })
+        await eventsService.unsaveEvent(eventId, token)
         setBanner({ tone: 'success', message: 'Event removed from saved list.' })
       }
 
@@ -593,11 +692,11 @@ function WorkspacePage() {
     setBusy('email')
 
     try {
-      const response = await api.post(`/events/${selectedEventId}/email-applicants`, {
+      const response = await eventsService.emailApplicants(selectedEventId, {
         subject: emailForm.subject.trim(),
         message: emailForm.message.trim(),
         target: emailForm.target,
-      }, { token })
+      }, token)
       setBanner({ tone: 'success', message: response.message || 'Email sent successfully.' })
       setEmailForm(defaultEmailForm)
     } catch (error) {
@@ -608,28 +707,128 @@ function WorkspacePage() {
     }
   }
 
+  const da = dashboardAnalytics
+  const summary = da?.summary || {}
+
   const stats = isAdmin
     ? [
-        { label: 'Pending approvals', value: workspace.pendingEvents.length, helper: 'Events currently waiting for moderation.', icon: ShieldCheck },
-        { label: 'Total events', value: workspace.allAdminEvents.length, helper: 'Full moderation ledger across all states.', icon: CalendarPlus2 },
-        { label: 'Unread notifications', value: workspace.notifications.filter((item) => !item.is_read).length, helper: 'Recent operational updates for the admin workspace.', icon: Bell },
+        { label: 'Pending approvals', value: workspace.pendingEvents.length, helper: 'Events waiting for moderation.', icon: ShieldCheck },
+        { label: 'Total events', value: workspace.allAdminEvents.length, helper: 'Full moderation ledger.', icon: CalendarPlus2 },
+        { label: 'Unread notifications', value: workspace.notifications.filter((item) => !item.is_read).length, helper: 'Operational updates.', icon: Bell },
       ]
     : [
-        { label: 'Open opportunities', value: workspace.events.length, helper: 'Approved events students can act on right now.', icon: Compass },
-        { label: 'Events you manage', value: workspace.myEvents.length, helper: 'Your personal organizer pipeline.', icon: CalendarPlus2 },
-        { label: 'Unread notifications', value: workspace.notifications.filter((item) => !item.is_read).length, helper: 'Keep replies and approvals from stalling.', icon: Bell },
+        { label: 'Open opportunities', value: workspace.events.length, helper: 'Approved events you can explore.', icon: Compass },
+        { label: 'Events you manage', value: workspace.myEvents.length, helper: 'Your organizer pipeline.', icon: CalendarPlus2 },
+        { label: 'Unread notifications', value: workspace.notifications.filter((item) => !item.is_read).length, helper: 'Replies and approvals.', icon: Bell },
       ]
+
+  const adminMetricCards = da
+    ? [
+        { label: 'Total applications', value: summary.totalApplications ?? 0, helper: 'Across measured events.', icon: Users },
+        { label: 'Total participants', value: summary.totalParticipants ?? summary.engagementTotal ?? 0, helper: 'Engagement context.', icon: Users },
+        { label: 'Participation rate', value: `${summary.participationRate ?? summary.approvalRate ?? 0}%`, helper: 'Reporting window.', icon: Activity },
+        { label: 'Active events', value: summary.activeEvents ?? summary.totalEvents ?? workspace.allAdminEvents.length, helper: 'Currently tracked.', icon: CalendarPlus2 },
+      ]
+    : []
+
+  const studentMetricCards = da
+    ? [
+        { label: 'My applications', value: summary.totalApplications ?? workspace.myApplications.length, helper: 'Submitted across events.', icon: Briefcase },
+        { label: 'Participation', value: summary.totalParticipants ?? da.myStats?.eventsJoined ?? 0, helper: 'Shortlisted / selected / completed.', icon: CheckCircle2 },
+        { label: 'Participation rate', value: `${summary.participationRate ?? 0}%`, helper: 'Of your applications.', icon: Activity },
+        { label: 'Active events', value: summary.activeEvents ?? workspace.events.length, helper: 'Open listings.', icon: CalendarPlus2 },
+      ]
+    : []
+
+  const drillColumns = (da?.drillDown?.length && typeof da.drillDown[0] === 'object')
+    ? Object.keys(da.drillDown[0]).filter((k) => k !== 'id').slice(0, 6).map((key) => ({
+        key,
+        label: key.replace(/_/g, ' '),
+        render: (row) => {
+          const v = row[key]
+          if (v === null || v === undefined) return '—'
+          if (typeof v === 'object') return JSON.stringify(v)
+          return String(v)
+        },
+      }))
+    : []
+
   const selectedEvent = workspace.myEvents.find((item) => item.id === selectedEventId) || null
   const savedEventIds = new Set(workspace.savedEvents.map((item) => item.id))
+
+  const filterToolbar = (
+    <div className="mb-6 flex flex-col gap-4 rounded-[var(--radius-xl)] border border-slate-200 bg-slate-50/90 p-4 md:flex-row md:flex-wrap md:items-end">
+      <Field label="Department">
+        <Select
+          value={dashboardFilters.department}
+          onChange={(e) => setDashboardFilters({ ...dashboardFilters, department: e.target.value })}
+          className="min-h-11"
+        >
+          <option value="">All branches</option>
+          {BRANCH_OPTIONS.map((branch) => (
+            <option key={branch} value={branch}>{branch}</option>
+          ))}
+        </Select>
+      </Field>
+      <Field label="Year">
+        <Select
+          value={dashboardFilters.year}
+          onChange={(e) => setDashboardFilters({ ...dashboardFilters, year: e.target.value })}
+          className="min-h-11"
+        >
+          <option value="">All years</option>
+          {YEAR_OPTIONS.map((year) => (
+            <option key={year} value={year}>{year}</option>
+          ))}
+        </Select>
+      </Field>
+      <Field label="From">
+        <Input
+          type="date"
+          value={dashboardFilters.from}
+          onChange={(e) => setDashboardFilters({ ...dashboardFilters, from: e.target.value })}
+          className="min-h-11"
+        />
+      </Field>
+      <Field label="To">
+        <Input
+          type="date"
+          value={dashboardFilters.to}
+          onChange={(e) => setDashboardFilters({ ...dashboardFilters, to: e.target.value })}
+          className="min-h-11"
+        />
+      </Field>
+      <div className="flex gap-2 pb-1">
+        <PrimaryButton type="button" busy={dashboardLoading} onClick={() => reloadDashboard()}>
+          Apply filters
+        </PrimaryButton>
+        <SecondaryButton
+          type="button"
+          onClick={() => {
+            setDashboardFilters({ department: '', year: '', from: '', to: '' })
+          }}
+        >
+          Reset
+        </SecondaryButton>
+      </div>
+    </div>
+  )
+
+  const insightsList = (da?.insights?.length ? da.insights : [
+    'Connect the analytics API for department and year breakdowns.',
+    'Filters above map to GET /api/dashboard query parameters.',
+  ])
 
   return (
     <AppShell
       currentSection={currentSection}
+      headerSearchPlaceholder="Filter events, applications, people…"
       onLogout={handleLogout}
       onSectionChange={setCurrentSection}
       sections={sections}
       setSidebarOpen={setSidebarOpen}
       sidebarOpen={sidebarOpen}
+      unreadNotifications={workspace.notifications.filter((item) => !item.is_read).length}
       user={user}
     >
       <div className="space-y-6">
@@ -637,13 +836,13 @@ function WorkspacePage() {
 
         {currentSection === 'overview' ? (
           <>
-            <section className="grid gap-6 xl:grid-cols-3">
+            <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
               {stats.map((item) => (
                 <StatCard key={item.label} {...item} />
               ))}
             </section>
-            <SectionCard title="What’s moving today" description="A quick pulse across activity in your workspace.">
-              <div className="grid gap-6 2xl:grid-cols-[1.08fr_0.92fr]">
+            <SectionCard title="Today’s pulse" description="Recent activity across your workspace.">
+              <div className="grid gap-6 lg:grid-cols-2">
                 <SnapshotList title={isAdmin ? 'Pending review' : 'Recent events'} items={(isAdmin ? workspace.pendingEvents : workspace.events).slice(0, 4)} type="event" />
                 <SnapshotList title="Latest notifications" items={workspace.notifications.slice(0, 4)} type="notification" />
               </div>
@@ -651,8 +850,163 @@ function WorkspacePage() {
           </>
         ) : null}
 
+        {!isAdmin && currentSection === 'dashboard' && !da ? (
+          <div className="grid gap-6 md:grid-cols-2">
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+        ) : null}
+
+        {!isAdmin && currentSection === 'dashboard' && da ? (
+          <>
+            <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+              {studentMetricCards.map((item) => (
+                <StatCard key={item.label} {...item} />
+              ))}
+            </section>
+            {filterToolbar}
+            <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+              <TrendPanel
+                title="Department-wise"
+                description="Applications or participation by department."
+                items={(da.departmentWise?.length ? da.departmentWise : [{ label: 'All departments', value: summary.totalApplications || 0 }]).map((x) => ({
+                  label: x.label,
+                  value: Number(x.value),
+                }))}
+                colorClass="bg-violet-500"
+              />
+              <Card padding="md" className="border-brand-100 bg-gradient-to-br from-brand-50/80 to-white">
+                <h3 className="mb-2 font-display text-lg font-semibold text-slate-900">My stats</h3>
+                <ul className="mb-0 space-y-2 text-sm text-slate-700">
+                  <li className="flex justify-between gap-2"><span>Applications sent</span><Badge variant="brand">{da.myStats?.applicationsSubmitted ?? workspace.myApplications.length}</Badge></li>
+                  <li className="flex justify-between gap-2"><span>Events joined</span><Badge variant="success">{da.myStats?.eventsJoined ?? '—'}</Badge></li>
+                  <li className="flex justify-between gap-2"><span>Saved events</span><Badge variant="info">{da.myStats?.savedEvents ?? workspace.savedEvents.length}</Badge></li>
+                </ul>
+              </Card>
+            </div>
+            <div className="grid gap-6 lg:grid-cols-2">
+              <SimplePieChart
+                title="Year-wise distribution"
+                description="Participation or applications by academic year."
+                items={da.yearWise?.length ? da.yearWise : [{ label: 'Year data pending', value: 1 }]}
+              />
+              <SimpleLineChart
+                title="Trends"
+                description="Activity over the selected period."
+                items={da.trends?.length ? da.trends : (da.activitySeries || []).map((row) => ({
+                  label: row.label,
+                  value: row.events ?? row.value ?? row.applications ?? 0,
+                }))}
+              />
+            </div>
+            <SectionCard title="Insights" description="Generated signals from the analytics service.">
+              <InsightPanel title="Highlights" items={insightsList} />
+            </SectionCard>
+          </>
+        ) : null}
+
+        {isAdmin && currentSection === 'analytics' && !da ? (
+          <div className="grid gap-6 md:grid-cols-2">
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+        ) : null}
+
+        {isAdmin && currentSection === 'analytics' && da ? (
+          <>
+            <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+              {adminMetricCards.map((item) => (
+                <StatCard key={item.label} {...item} />
+              ))}
+            </section>
+            {filterToolbar}
+            <SectionCard
+              title="Analytics dashboard"
+              description={da?.source === 'api'
+                ? 'Live reporting via GET /api/dashboard (with legacy fallbacks).'
+                : 'Derived from workspace data until the analytics API is available.'}
+            >
+              <div className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
+                <TrendPanel
+                  title="Department-wise (bar)"
+                  description="Volume by department when provided by the API."
+                  items={(da.departmentWise?.length ? da.departmentWise : (da.activitySeries || []).map((row) => ({
+                    label: row.label,
+                    value: Number(row.events ?? row.value ?? 0),
+                  }))).map((x) => ({ label: x.label, value: Number(x.value) }))}
+                  colorClass="bg-indigo-500"
+                />
+                <SimplePieChart
+                  title="Year-wise"
+                  description="Share by academic year."
+                  items={da.yearWise?.length ? da.yearWise : (da.approvals || []).map((a) => ({ label: a.label, value: a.value }))}
+                />
+              </div>
+
+              <div className="mt-6 grid gap-6 xl:grid-cols-2">
+                <SimpleLineChart
+                  title="Trends (line)"
+                  description="Time-series from dashboard payload."
+                  items={da.trends?.length ? da.trends : (da.activitySeries || []).map((row) => ({
+                    label: row.label,
+                    value: row.events ?? row.applications ?? row.value ?? 0,
+                  }))}
+                />
+                <BreakdownPanel
+                  title="Approval mix"
+                  description="Moderation distribution."
+                  items={da.approvals?.length ? da.approvals : []}
+                />
+              </div>
+
+              <div className="mt-6 grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+                <BreakdownPanel
+                  title="Engagement signals"
+                  description="Operational indicators."
+                  items={da.engagement?.length ? da.engagement : []}
+                />
+                <TrendPanel
+                  title="Application activity"
+                  description="Applications over recent buckets."
+                  items={(da.applications || []).map((item) => ({
+                    label: item.label,
+                    value: Number(item.value ?? item.applications ?? 0),
+                  }))}
+                  colorClass="bg-emerald-500"
+                />
+              </div>
+
+              <div className="mt-6 grid gap-6 lg:grid-cols-2">
+                <InsightPanel title="Insights" items={insightsList} />
+                <InsightPanel
+                  title="Coverage"
+                  items={da?.source === 'api'
+                    ? [
+                        'Primary path: /api/dashboard with department, year, from, to.',
+                        'Charts adapt to departmentWise, yearWise, and trends arrays.',
+                        'Drill-down table renders when drillDown rows are returned.',
+                      ]
+                    : [
+                        'Showing derived metrics from admin events and notifications.',
+                        'Backend /api/dashboard will enrich charts automatically.',
+                      ]}
+                />
+              </div>
+
+              {drillColumns.length ? (
+                <div className="mt-8">
+                  <h3 className="mb-3 font-display text-xl font-semibold text-slate-900">Drill-down</h3>
+                  <DataTable columns={drillColumns} rows={da.drillDown} pageSize={6} emptyMessage="No drill-down rows." />
+                </div>
+              ) : null}
+            </SectionCard>
+          </>
+        ) : null}
+
         {!isAdmin && currentSection === 'discover' ? (
-          <SectionCard title="Discover events" description="Public approved events from the backend, ready for students to explore and apply.">
+          <SectionCard title="Discover events" description="Approved campus events open for applications.">
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
               {workspace.events.map((event) => (
                 <EventCard
@@ -669,7 +1023,7 @@ function WorkspacePage() {
         ) : null}
 
         {!isAdmin && currentSection === 'saved' ? (
-          <SectionCard title="Saved events" description="Keep interesting opportunities here so you can revisit and compare them later.">
+          <SectionCard title="Saved events" description="Shortlisted opportunities.">
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
               {workspace.savedEvents.length ? workspace.savedEvents.map((event) => (
                 <EventCard
@@ -680,20 +1034,20 @@ function WorkspacePage() {
                   onToggleSaved={(shouldSave) => handleToggleSavedEvent(event.id, shouldSave)}
                   onApply={() => setApplyModal({ open: true, eventId: event.id, eventTitle: event.title })}
                 />
-              )) : <EmptyState title="No saved events yet" message="Save events from Discover to build your own shortlist." />}
+              )) : <EmptyState title="No saved events yet" message="Save events from Discover to build your shortlist." />}
             </div>
           </SectionCard>
         ) : null}
 
         {!isAdmin && currentSection === 'events' ? (
-          <div className="grid gap-7 2xl:grid-cols-[1.18fr_0.82fr]">
+          <div className="grid gap-7 xl:grid-cols-[1.18fr_0.82fr]">
             <SectionCard
               title={eventMode === 'edit-event' ? 'Edit event' : eventMode === 'edit-draft' ? 'Finish your draft' : 'Create a new event'}
               description={eventMode === 'edit-event'
-                ? 'Any updates you save will go back through admin approval before becoming public again.'
+                ? 'Updates go back through admin approval.'
                 : eventMode === 'edit-draft'
-                  ? 'Drafts let you work in stages. Submit when everything looks ready.'
-                  : 'Submissions go through admin approval before becoming public.'}
+                  ? 'Submit when ready.'
+                  : 'Submissions require admin approval.'}
             >
               <form onSubmit={handleEventSubmit} className="grid gap-5">
                 <Field label="Title"><Input value={eventForm.title} onChange={(event) => setEventForm({ ...eventForm, title: event.target.value })} required /></Field>
@@ -744,22 +1098,22 @@ function WorkspacePage() {
               </form>
             </SectionCard>
 
-            <SectionCard title="Managed events" description="Track approval status and review applications for your listings.">
+            <SectionCard title="Managed events" description="Drafts and submitted listings.">
               <div className="mb-6">
-                <h3 className="mb-3 font-display text-[1.35rem] font-semibold text-slate-950">Drafts</h3>
+                <h3 className="mb-3 font-display text-lg font-semibold text-slate-900">Drafts</h3>
                 <div className="space-y-3">
                   {workspace.eventDrafts.length ? workspace.eventDrafts.map((draft) => (
-                    <div key={draft.id} className="rounded-[20px] border border-slate-200 p-5 dark:border-slate-700">
+                    <div key={draft.id} className="rounded-[var(--radius-xl)] border border-slate-200 bg-white p-5 shadow-sm">
                       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                         <div>
-                          <p className="mb-1 font-display text-[1.25rem] font-semibold text-slate-950">{draft.title || 'Untitled draft'}</p>
-                          <p className="mb-0 text-[0.98rem] text-soft">
+                          <p className="mb-1 font-display text-lg font-semibold text-slate-950">{draft.title || 'Untitled draft'}</p>
+                          <p className="mb-0 text-sm text-slate-600">
                             Last updated {formatDateTime(draft.updated_at)}
                           </p>
                         </div>
                         <Pill tone="default">Draft</Pill>
                       </div>
-                      <p className="mb-4 text-[1rem] leading-7 text-soft">
+                      <p className="mb-4 text-sm leading-7 text-slate-600">
                         {draft.description || 'Keep building this event when you are ready.'}
                       </p>
                       <div className="flex flex-wrap gap-2">
@@ -780,88 +1134,89 @@ function WorkspacePage() {
                         </SecondaryButton>
                       </div>
                     </div>
-                  )) : <EmptyState title="No drafts yet" message="Use Save draft to start building an event without submitting it yet." />}
+                  )) : <EmptyState title="No drafts yet" message="Use Save draft to build an event before submitting." />}
                 </div>
               </div>
 
-              <div className="border-t border-slate-200 pt-6 dark:border-slate-800">
-                <h3 className="mb-3 font-display text-[1.35rem] font-semibold text-slate-950">Published and submitted events</h3>
-              <div className="space-y-3">
-                {workspace.myEvents.length ? workspace.myEvents.map((event) => (
-                  <div
-                    key={event.id}
-                    className={`rounded-[20px] border p-6 transition ${
-                      selectedEventId === event.id
-                        ? 'border-brand-400 bg-brand-50 dark:bg-brand-500/10'
-                        : 'border-slate-200 dark:border-slate-700'
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => handleSelectEvent(event.id)}
-                      className="w-full text-left"
+              <div className="border-t border-slate-200 pt-6">
+                <h3 className="mb-3 font-display text-lg font-semibold text-slate-900">Published and submitted</h3>
+                <div className="space-y-3">
+                  {workspace.myEvents.length ? workspace.myEvents.map((event) => (
+                    <div
+                      key={event.id}
+                      className={`rounded-[var(--radius-xl)] border p-6 transition ${
+                        selectedEventId === event.id
+                          ? 'border-brand-400 bg-brand-50/60 shadow-sm'
+                          : 'border-slate-200 bg-white'
+                      }`}
                     >
-                    <div className="mb-3 flex flex-wrap items-center gap-2">
-                      <Pill tone="info">{event.category}</Pill>
-                      <Pill tone={event.approval_status === 'APPROVED' ? 'success' : event.approval_status === 'REJECTED' ? 'danger' : 'warn'}>
-                        {event.approval_status}
-                      </Pill>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectEvent(event.id)}
+                        className="w-full text-left"
+                      >
+                        <div className="mb-3 flex flex-wrap items-center gap-2">
+                          <Pill tone="info">{event.category}</Pill>
+                          <Pill tone={event.approval_status === 'APPROVED' ? 'success' : event.approval_status === 'REJECTED' ? 'danger' : 'warn'}>
+                            {event.approval_status}
+                          </Pill>
+                        </div>
+                        <h3 className="mb-2 font-display text-xl font-semibold text-slate-950">{event.title}</h3>
+                        <p className="mb-3 text-sm leading-7 text-slate-600">{event.description}</p>
+                        <p className="mb-0 text-xs font-medium text-slate-500">Deadline {formatDate(event.deadline)}</p>
+                      </button>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <SecondaryButton type="button" onClick={() => startEditEvent(event)}>
+                          Edit event
+                        </SecondaryButton>
+                      </div>
                     </div>
-                    <h3 className="mb-2 font-display text-[1.45rem] font-semibold text-slate-950">{event.title}</h3>
-                    <p className="mb-3 text-[1rem] leading-7 text-soft">{event.description}</p>
-                    <p className="mb-0 text-[0.95rem] font-medium text-soft">Deadline {formatDate(event.deadline)}</p>
-                    </button>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <SecondaryButton type="button" onClick={() => startEditEvent(event)}>
-                        Edit event
-                      </SecondaryButton>
-                    </div>
-                  </div>
-                )) : <EmptyState title="No managed events yet" message="Create your first opportunity to start receiving applications." />}
-              </div>
+                  )) : <EmptyState title="No managed events yet" message="Create your first opportunity." />}
+                </div>
               </div>
 
               {selectedEventId ? (
-                <div className="mt-5 border-t border-slate-200 pt-5 dark:border-slate-800">
-                  <h3 className="mb-3 font-display text-lg font-semibold">Applications</h3>
+                <div className="mt-5 border-t border-slate-200 pt-5">
+                  <h3 className="mb-3 font-display text-lg font-semibold text-slate-900">Applications</h3>
                   <div className="space-y-3">
                     {workspace.eventApplications.length ? workspace.eventApplications.map((application) => (
-                      <div key={application.id} className="rounded-[20px] border border-slate-200 p-5 dark:border-slate-700">
+                      <div key={application.id} className="rounded-[var(--radius-xl)] border border-slate-200 bg-white p-5 shadow-sm">
                         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                           <div>
-                              <p className="mb-1 text-[1.05rem] font-semibold text-slate-950">{application.student?.full_name}</p>
-                              <p className="mb-0 text-[0.98rem] text-soft">{application.student?.profile?.department || 'Department pending'} • Year {application.student?.profile?.year || 'NA'}</p>
+                            <p className="mb-1 text-base font-semibold text-slate-950">{application.student?.full_name}</p>
+                            <p className="mb-0 text-sm text-slate-600">{application.student?.profile?.department || 'Department pending'} • Year {application.student?.profile?.year || 'NA'}</p>
                           </div>
                           <Pill tone={application.status === 'PENDING' ? 'warn' : application.status === 'REJECTED' ? 'danger' : 'success'}>
                             {application.status}
                           </Pill>
                         </div>
-                        <p className="text-[1rem] leading-7 text-soft">{application.message || 'No note attached.'}</p>
+                        <p className="text-sm leading-7 text-slate-600">{application.message || 'No note attached.'}</p>
                         <div className="mt-3 flex flex-wrap gap-2">
                           {['SHORTLISTED', 'SELECTED', 'REJECTED', 'COMPLETED'].map((status) => (
-                            <SecondaryButton
+                            <Button
                               key={status}
+                              variant="outline"
+                              size="sm"
                               onClick={() => handleStatusUpdate(application.id, status)}
                               disabled={busy === application.id}
-                              className="text-[0.92rem]"
                             >
                               {status}
-                            </SecondaryButton>
+                            </Button>
                           ))}
                         </div>
                       </div>
-                    )) : <EmptyState title="No applications yet" message="Applications will appear here after students respond to your event." />}
+                    )) : <EmptyState title="No applications yet" message="Applications appear here after students apply." />}
                   </div>
 
-                  <div className="mt-6 rounded-[20px] border border-slate-200 bg-slate-50/70 p-6 dark:border-slate-700 dark:bg-slate-900/40">
+                  <div className="mt-6 rounded-[var(--radius-xl)] border border-slate-200 bg-slate-50/80 p-6">
                     <div className="mb-4 flex items-start gap-3">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600 dark:text-brand-300">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600">
                         <Mail className="h-5 w-5" />
                       </div>
                       <div>
-                        <h3 className="mb-1 font-display text-[1.4rem] font-semibold text-slate-950">Email applicants</h3>
-                        <p className="mb-0 text-[1rem] leading-7 text-soft">
-                          Send an update for {selectedEvent?.title || 'this event'} to all applicants or only shortlisted candidates.
+                        <h3 className="mb-1 font-display text-lg font-semibold text-slate-950">Email applicants</h3>
+                        <p className="mb-0 text-sm leading-7 text-slate-600">
+                          Send an update for {selectedEvent?.title || 'this event'}.
                         </p>
                       </div>
                     </div>
@@ -906,32 +1261,58 @@ function WorkspacePage() {
         ) : null}
 
         {!isAdmin && currentSection === 'applications' ? (
-          <SectionCard title="My applications" description="Track where you stand across your submitted applications.">
-            <div className="space-y-4">
-              {workspace.myApplications.length ? workspace.myApplications.map((application) => (
-                <div key={application.id} className="glass-panel rounded-[20px] p-5">
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h3 className="mb-1 font-display text-[1.35rem] font-semibold text-slate-950">{application.event?.title}</h3>
-                      <p className="mb-0 text-[1rem] text-soft">{application.event?.organizer?.full_name}</p>
-                    </div>
-                    <Pill tone={application.status === 'PENDING' ? 'warn' : application.status === 'REJECTED' ? 'danger' : 'success'}>
-                      {application.status}
-                    </Pill>
-                  </div>
-                  <p className="mb-0 text-[1rem] leading-7 text-soft">{application.message || 'No application note submitted.'}</p>
-                </div>
-              )) : <EmptyState title="No applications yet" message="You have not applied to any events yet. Discover one and send your first application." />}
-            </div>
+          <SectionCard title="My applications" description="Status of every application you have submitted.">
+            {workspace.myApplications.length ? (
+              <DataTable
+                columns={[
+                  {
+                    key: 'event',
+                    label: 'Event',
+                    render: (row) => row.event?.title || '—',
+                  },
+                  {
+                    key: 'organizer',
+                    label: 'Organizer',
+                    render: (row) => row.event?.organizer?.full_name || '—',
+                  },
+                  {
+                    key: 'status',
+                    label: 'Status',
+                    render: (row) => (
+                      <Pill tone={row.status === 'PENDING' ? 'warn' : row.status === 'REJECTED' ? 'danger' : 'success'}>{row.status}</Pill>
+                    ),
+                  },
+                  {
+                    key: 'message',
+                    label: 'Note',
+                    render: (row) => row.message || '—',
+                  },
+                ]}
+                rows={workspace.myApplications}
+                pageSize={8}
+              />
+            ) : (
+              <EmptyState title="No applications yet" message="Discover an event and send your first application." />
+            )}
           </SectionCard>
         ) : null}
 
         {!isAdmin && currentSection === 'students' ? (
-          <SectionCard title="Student search" description="Discover student profiles by skill, department, year, and keyword.">
+          <SectionCard title="Student search" description="Find peers by skills, department, and year.">
             <form onSubmit={searchStudents} className="mb-6 grid gap-5 md:grid-cols-4">
               <SearchInput value={studentFilters.search} onChange={(event) => setStudentFilters({ ...studentFilters, search: event.target.value })} placeholder="Name or email" />
-              <Input placeholder="Department" value={studentFilters.department} onChange={(event) => setStudentFilters({ ...studentFilters, department: event.target.value })} />
-              <Input placeholder="Year" value={studentFilters.year} onChange={(event) => setStudentFilters({ ...studentFilters, year: event.target.value })} />
+              <Select value={studentFilters.department} onChange={(event) => setStudentFilters({ ...studentFilters, department: event.target.value })}>
+                <option value="">All branches</option>
+                {BRANCH_OPTIONS.map((branch) => (
+                  <option key={branch} value={branch}>{branch}</option>
+                ))}
+              </Select>
+              <Select value={studentFilters.year} onChange={(event) => setStudentFilters({ ...studentFilters, year: event.target.value })}>
+                <option value="">All years</option>
+                {YEAR_OPTIONS.map((year) => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </Select>
               <div className="flex gap-3">
                 <Input placeholder="Skills" value={studentFilters.skills} onChange={(event) => setStudentFilters({ ...studentFilters, skills: event.target.value })} />
                 <PrimaryButton type="submit" busy={busy === 'students'}>Search</PrimaryButton>
@@ -939,17 +1320,17 @@ function WorkspacePage() {
             </form>
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
               {workspace.students.length ? workspace.students.map((student) => (
-                <div key={student.id} className="glass-panel rounded-[20px] p-6">
-                  <h3 className="mb-1 font-display text-[1.35rem] font-semibold text-slate-950">{student.full_name}</h3>
-                  <p className="mb-2 text-[1rem] text-soft">{student.email}</p>
-                  <p className="mb-4 text-[1rem] text-soft">{student.profile?.department || 'Department pending'} • Year {student.profile?.year || 'NA'}</p>
+                <Card key={student.id} interactive className="border-slate-200/90">
+                  <h3 className="mb-1 font-display text-lg font-semibold text-slate-950">{student.full_name}</h3>
+                  <p className="mb-2 text-sm text-slate-600">{student.email}</p>
+                  <p className="mb-4 text-sm text-slate-600">{student.profile?.department || 'Department pending'} • Year {student.profile?.year || 'NA'}</p>
                   <div className="flex flex-wrap gap-2">
                     {toArray(student.profile?.skills).map((skill) => (
-                      <span key={skill} className="rounded-full bg-white/90 px-3.5 py-2 text-[0.9rem] font-medium dark:bg-slate-900/70">{skill}</span>
+                      <Badge key={skill} variant="neutral">{skill}</Badge>
                     ))}
                   </div>
-                </div>
-              )) : <EmptyState title="No students found" message="Try a broader search, or open this after more users complete their profiles." />}
+                </Card>
+              )) : <EmptyState title="No students found" message="Try broader filters or encourage peers to complete profiles." />}
             </div>
           </SectionCard>
         ) : null}
@@ -957,206 +1338,169 @@ function WorkspacePage() {
         {currentSection === 'notifications' ? (
           <SectionCard
             title="Notifications"
-            description="Actionable updates from applications, approvals, and status changes."
-            action={<SecondaryButton onClick={() => handleNotificationAction('', 'read-all')}>Mark all as read</SecondaryButton>}
+            description="Application updates, approvals, and system messages."
+            action={(
+              <SecondaryButton onClick={() => handleNotificationAction('', 'read-all')}>
+                Mark all read
+              </SecondaryButton>
+            )}
           >
             <div className="space-y-3">
               {workspace.notifications.length ? workspace.notifications.map((item) => (
-                <div key={item.id} className="flex flex-col gap-4 rounded-[20px] border border-slate-200 p-5 dark:border-slate-700 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <div className="mb-2 flex items-center gap-2">
-                      <Pill tone={item.is_read ? 'default' : 'info'}>{item.is_read ? 'Read' : 'Unread'}</Pill>
-                      <span className="text-[0.92rem] font-medium text-soft">{formatDateTime(item.created_at)}</span>
+                <div
+                  key={item.id}
+                  className={`flex flex-col gap-4 rounded-[var(--radius-xl)] border p-5 md:flex-row md:items-center md:justify-between ${
+                    item.is_read ? 'border-slate-200 bg-white' : 'border-brand-200 bg-brand-50/40'
+                  }`}
+                >
+                  <div className="flex gap-3">
+                    <div className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${item.is_read ? 'bg-slate-100 text-slate-500' : 'bg-brand-500 text-white'}`} aria-hidden>
+                      <Bell className="h-5 w-5" />
                     </div>
-                    <p className="mb-0 text-[1rem] leading-7 text-slate-950">{item.message}</p>
+                    <div>
+                      <div className="mb-2 flex flex-wrap items-center gap-2">
+                        <Pill tone={item.is_read ? 'default' : 'info'}>{item.is_read ? 'Read' : 'Unread'}</Pill>
+                        <span className="text-xs font-medium text-slate-500">{formatDateTime(item.created_at)}</span>
+                      </div>
+                      <p className="mb-0 text-sm leading-7 text-slate-900">{item.message}</p>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {!item.is_read ? <SecondaryButton onClick={() => handleNotificationAction(item.id, 'read')}>Mark read</SecondaryButton> : null}
                     <SecondaryButton onClick={() => handleNotificationAction(item.id, 'delete')}>Delete</SecondaryButton>
                   </div>
                 </div>
-              )) : <EmptyState title="No notifications yet" message="New application activity and moderation updates will show up here." />}
+              )) : <EmptyState title="No notifications" message="New activity will appear here." />}
             </div>
           </SectionCard>
         ) : null}
 
         {!isAdmin && currentSection === 'profile' ? (
           <div className="grid gap-7 xl:grid-cols-[1.05fr_0.95fr]">
-            <SectionCard title="Profile settings" description="Keep your public academic and skills profile current.">
+            <SectionCard title="Profile settings" description="Bio, academics, skills, and interests.">
               <form onSubmit={handleUpdateProfile} className="grid gap-5">
                 <Field label="Bio"><Textarea value={profileForm.bio} onChange={(event) => setProfileForm({ ...profileForm, bio: event.target.value })} /></Field>
                 <div className="grid gap-5 md:grid-cols-2">
-                  <Field label="Department"><Input value={profileForm.department} onChange={(event) => setProfileForm({ ...profileForm, department: event.target.value })} /></Field>
-                  <Field label="Year"><Input type="number" min="1" max="5" value={profileForm.year} onChange={(event) => setProfileForm({ ...profileForm, year: event.target.value })} /></Field>
+                  <Field label="Department">
+                    <Select value={profileForm.department} onChange={(event) => setProfileForm({ ...profileForm, department: event.target.value })}>
+                      <option value="">Select branch</option>
+                      {BRANCH_OPTIONS.map((branch) => (
+                        <option key={branch} value={branch}>{branch}</option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field label="Year">
+                    <Select value={profileForm.year} onChange={(event) => setProfileForm({ ...profileForm, year: event.target.value })}>
+                      <option value="">Select year</option>
+                      {YEAR_OPTIONS.map((year) => (
+                        <option key={year} value={year}>{year}</option>
+                      ))}
+                    </Select>
+                  </Field>
                 </div>
                 <Field label="Profile picture URL"><Input value={profileForm.profile_picture} onChange={(event) => setProfileForm({ ...profileForm, profile_picture: event.target.value })} /></Field>
-                <Field label="Skills" hint="Comma-separated values"><Input value={profileForm.skills} onChange={(event) => setProfileForm({ ...profileForm, skills: event.target.value })} /></Field>
-                <Field label="Interests" hint="Comma-separated values"><Input value={profileForm.interests} onChange={(event) => setProfileForm({ ...profileForm, interests: event.target.value })} /></Field>
+                <Field label="Skills" hint="Comma-separated"><Input value={profileForm.skills} onChange={(event) => setProfileForm({ ...profileForm, skills: event.target.value })} /></Field>
+                <Field label="Interests" hint="Comma-separated"><Input value={profileForm.interests} onChange={(event) => setProfileForm({ ...profileForm, interests: event.target.value })} /></Field>
                 <PrimaryButton type="submit" busy={busy === 'profile'}>Save profile</PrimaryButton>
               </form>
             </SectionCard>
 
-            <SectionCard title="Profile preview" description="A quick read of what collaborators and organizers can see.">
-              <div className="glass-panel rounded-[32px] p-7">
-                <h3 className="mb-2 font-display text-[2.7rem] leading-tight font-semibold text-slate-950 dark:text-slate-50">{user?.full_name}</h3>
-                <p className="mb-3 text-[1rem] font-medium text-soft">{workspace.profile?.department || 'Department pending'} • Year {workspace.profile?.year || 'NA'}</p>
-                <p className="mb-5 text-[1.05rem] leading-8 text-slate-800 dark:text-slate-300">{workspace.profile?.bio || 'Add a bio so people understand your interests and strengths.'}</p>
-                <div className="mb-4 flex flex-wrap gap-2">
-                  {toArray(workspace.profile?.skills).map((skill) => (
-                    <span key={skill} className="rounded-full bg-white/90 px-3.5 py-2 text-[0.9rem] font-medium dark:bg-slate-900/70">{skill}</span>
-                  ))}
-                </div>
-                <div className="border-t border-slate-200 pt-5 dark:border-slate-700">
-                  <h4 className="mb-3 font-display text-2xl font-semibold text-slate-950 dark:text-slate-50">Experiences</h4>
-                  <div className="space-y-3">
-                    {workspace.experiences.length ? workspace.experiences.map((experience) => (
-                      <div key={experience.id} className="rounded-[18px] bg-slate-50/80 p-5 dark:bg-slate-900/60">
-                        <p className="mb-1 text-[1.02rem] font-semibold text-slate-950">{experience.title}</p>
-                        <p className="mb-0 text-[0.98rem] text-soft">{experience.event_name} • {formatDate(experience.completed_at)}</p>
+            <SectionCard title="Preview" description="What organizers see when they view your profile.">
+              <Card className="overflow-hidden border-slate-200/90">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                  <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 text-xl font-bold text-white shadow-md">
+                    {(user?.full_name || '?').slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="mb-1 font-display text-2xl font-semibold text-slate-950">{user?.full_name}</h3>
+                    <p className="mb-3 text-sm text-slate-600">{workspace.profile?.department || 'Department'} • Year {workspace.profile?.year || '—'}</p>
+                    <p className="mb-4 text-sm leading-7 text-slate-700">{workspace.profile?.bio || 'Add a short bio.'}</p>
+                    <div className="mb-4 flex flex-wrap gap-2">
+                      {toArray(workspace.profile?.skills).map((skill) => (
+                        <Badge key={skill} variant="brand">{skill}</Badge>
+                      ))}
+                    </div>
+                    <div className="border-t border-slate-100 pt-4">
+                      <h4 className="mb-2 font-display text-lg font-semibold text-slate-900">Experiences</h4>
+                      <div className="space-y-2">
+                        {workspace.experiences.length ? workspace.experiences.map((experience) => (
+                          <div key={experience.id} className="rounded-xl bg-slate-50 px-4 py-3">
+                            <p className="mb-0.5 text-sm font-semibold text-slate-900">{experience.title}</p>
+                            <p className="mb-0 text-xs text-slate-600">{experience.event_name} • {formatDate(experience.completed_at)}</p>
+                          </div>
+                        )) : <p className="mb-0 text-sm text-slate-500">Completed events will appear here.</p>}
                       </div>
-                    )) : <p className="mb-0 text-[1rem] text-soft">Completed events will become profile experiences automatically.</p>}
+                    </div>
                   </div>
                 </div>
-              </div>
+              </Card>
             </SectionCard>
           </div>
         ) : null}
 
         {isAdmin && currentSection === 'admin' ? (
           <div className="grid gap-7 xl:grid-cols-[0.9fr_1.1fr]">
-            <SectionCard title="Pending approvals" description="Events currently waiting for moderation.">
+            <SectionCard title="Pending approvals" description="Events awaiting review.">
               <div className="space-y-3">
                 {workspace.pendingEvents.length ? workspace.pendingEvents.map((event) => (
-                  <div key={event.id} className="rounded-[20px] border border-slate-200 p-5 dark:border-slate-700">
+                  <Card key={event.id} padding="md">
                     <div className="mb-3 flex items-start justify-between gap-3">
                       <div>
-                        <h3 className="mb-1 font-display text-[1.35rem] font-semibold text-slate-950">{event.title}</h3>
-                        <p className="mb-0 text-[1rem] text-soft">{event.organizer?.full_name}</p>
+                        <h3 className="mb-1 font-display text-lg font-semibold text-slate-950">{event.title}</h3>
+                        <p className="mb-0 text-sm text-slate-600">{event.organizer?.full_name}</p>
                       </div>
                       <Pill tone="warn">{event.approval_status}</Pill>
                     </div>
-                    <p className="mb-3 text-[1rem] leading-7 text-soft">{event.description}</p>
-                    <div className="flex gap-2">
+                    <p className="mb-3 text-sm leading-7 text-slate-600">{event.description}</p>
+                    <div className="flex flex-wrap gap-2">
                       <PrimaryButton busy={busy === `${event.id}approve`} onClick={() => handleAdminReview(event.id, 'approve')}>Approve</PrimaryButton>
                       <SecondaryButton onClick={() => handleAdminReview(event.id, 'reject')}>Reject</SecondaryButton>
                     </div>
-                  </div>
-                )) : <EmptyState title="Queue is clear" message="No pending events are waiting for review right now." />}
+                  </Card>
+                )) : <EmptyState title="Queue is clear" message="No pending events." />}
               </div>
             </SectionCard>
 
-            <SectionCard title="Moderation ledger" description="All events across approval states.">
-              <div className="space-y-3">
-                {workspace.allAdminEvents.map((event) => (
-                  <div key={event.id} className="glass-panel rounded-[20px] p-5">
-                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                      <h3 className="mb-0 font-display text-[1.3rem] font-semibold text-slate-950">{event.title}</h3>
-                      <Pill tone={event.approval_status === 'APPROVED' ? 'success' : event.approval_status === 'REJECTED' ? 'danger' : 'warn'}>
-                        {event.approval_status}
+            <SectionCard title="Moderation ledger" description="All events by state.">
+              <DataTable
+                columns={[
+                  { key: 'title', label: 'Title', render: (row) => row.title },
+                  { key: 'organizer', label: 'Organizer', render: (row) => row.organizer?.full_name || '—' },
+                  {
+                    key: 'approval_status',
+                    label: 'Status',
+                    render: (row) => (
+                      <Pill tone={row.approval_status === 'APPROVED' ? 'success' : row.approval_status === 'REJECTED' ? 'danger' : 'warn'}>
+                        {row.approval_status}
                       </Pill>
-                    </div>
-                    <p className="mb-1 text-[1rem] text-soft">{event.organizer?.full_name}</p>
-                    <p className="mb-0 text-[0.98rem] text-soft">Created {formatDate(event.created_at)}</p>
-                  </div>
-                ))}
-              </div>
+                    ),
+                  },
+                  { key: 'created_at', label: 'Created', render: (row) => formatDate(row.created_at) },
+                ]}
+                rows={workspace.allAdminEvents}
+                pageSize={6}
+              />
             </SectionCard>
           </div>
         ) : null}
       </div>
 
-      <Modal show={applyModal.open} onHide={() => setApplyModal({ open: false, eventId: '', eventTitle: '' })} centered>
-        <Modal.Header closeButton className="border-0 pb-0">
-          <Modal.Title className="font-display text-2xl font-semibold">Apply to {applyModal.eventTitle}</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <Field label="Message to the organizer">
-            <Textarea value={applyMessage} onChange={(event) => setApplyMessage(event.target.value)} placeholder="Tell them why you are a strong fit." />
-          </Field>
-        </Modal.Body>
-        <Modal.Footer className="border-0">
-          <SecondaryButton onClick={() => setApplyModal({ open: false, eventId: '', eventTitle: '' })}>Cancel</SecondaryButton>
-          <PrimaryButton busy={busy === 'apply'} onClick={handleApplyToEvent}>Send application</PrimaryButton>
-        </Modal.Footer>
-      </Modal>
+      <AppModal
+        show={applyModal.open}
+        onHide={() => setApplyModal({ open: false, eventId: '', eventTitle: '' })}
+        title={`Apply to ${applyModal.eventTitle}`}
+        footer={(
+          <>
+            <SecondaryButton onClick={() => setApplyModal({ open: false, eventId: '', eventTitle: '' })}>Cancel</SecondaryButton>
+            <PrimaryButton busy={busy === 'apply'} onClick={handleApplyToEvent}>Send application</PrimaryButton>
+          </>
+        )}
+      >
+        <Field label="Message to the organizer">
+          <Textarea value={applyMessage} onChange={(event) => setApplyMessage(event.target.value)} placeholder="Tell them why you are a strong fit." />
+        </Field>
+      </AppModal>
     </AppShell>
-  )
-}
-
-function EventCard({ event, isSaved = false, onToggleSaved, onApply, saveBusy = false }) {
-  const SaveIcon = isSaved ? BookmarkCheck : Bookmark
-
-  return (
-    <motion.article whileHover={{ y: -4 }} className="glass-panel elevated-hover flex h-full flex-col rounded-[20px] p-6">
-      <div className="mb-5 flex items-center justify-between">
-        <Pill tone={event.category === 'TECH' ? 'info' : event.category === 'CULTURAL' ? 'success' : 'warn'}>
-          {event.category}
-        </Pill>
-        <div className="flex items-center gap-2">
-          <Pill tone={event.status === 'OPEN' ? 'success' : 'default'}>{event.status}</Pill>
-          {onToggleSaved ? (
-            <button
-              type="button"
-              onClick={() => onToggleSaved(!isSaved)}
-              disabled={saveBusy}
-              className={`inline-flex h-10 w-10 items-center justify-center rounded-full border transition ${
-                isSaved
-                  ? 'border-brand-200 bg-brand-50 text-brand-600'
-                  : 'border-slate-200 bg-white text-slate-500 hover:border-brand-300 hover:text-brand-600'
-              } disabled:cursor-not-allowed disabled:opacity-60`}
-              aria-label={isSaved ? 'Remove event from saved list' : 'Save event'}
-            >
-              <SaveIcon className="h-4 w-4" />
-            </button>
-          ) : null}
-        </div>
-      </div>
-      <h3 className="mb-3 font-display text-[1.45rem] font-semibold text-slate-950">{event.title}</h3>
-      <p className="mb-5 text-[1rem] leading-7 text-soft">{event.description}</p>
-      <div className="mb-5 space-y-3 text-[1rem] text-soft">
-        <p className="mb-0"><span className="font-semibold text-slate-900 dark:text-slate-200">Event name:</span> {event.event_name}</p>
-        <p className="mb-0"><span className="font-semibold text-slate-900 dark:text-slate-200">Organizer:</span> {event.organizer?.full_name}</p>
-        <p className="mb-0"><span className="font-semibold text-slate-900 dark:text-slate-200">Deadline:</span> {formatDate(event.deadline)}</p>
-      </div>
-      <div className="mb-6 flex flex-wrap gap-2">
-        {toArray(event.required_skills).slice(0, 4).map((skill) => (
-          <span key={skill} className="rounded-full bg-white/90 px-3.5 py-2 text-[0.9rem] font-medium dark:bg-slate-900/70">{skill}</span>
-        ))}
-      </div>
-      <div className="mt-auto flex gap-3">
-        {onToggleSaved ? (
-          <SecondaryButton className="min-w-[150px]" onClick={() => onToggleSaved(!isSaved)} disabled={saveBusy}>
-            {isSaved ? 'Saved' : 'Save'}
-          </SecondaryButton>
-        ) : null}
-        <PrimaryButton className="w-full" onClick={onApply}>Apply now</PrimaryButton>
-      </div>
-    </motion.article>
-  )
-}
-
-function SnapshotList({ title, items, type }) {
-  return (
-    <div className="rounded-[20px] border border-slate-200/90 bg-white/80 p-8">
-      <h3 className="mb-6 font-display text-[2rem] font-semibold text-slate-950">{title}</h3>
-      <div className="space-y-4">
-        {items.length ? items.map((item) => (
-          <div key={item.id} className="rounded-[18px] bg-slate-100 p-5">
-            {type === 'event' ? (
-              <>
-                <p className="mb-1 text-[1.2rem] font-semibold text-slate-950">{item.title}</p>
-                <p className="mb-0 text-[1rem] text-soft">{item.event_name} • {formatDate(item.deadline)}</p>
-              </>
-            ) : (
-              <>
-                <p className="mb-1 text-[1.05rem] font-semibold text-slate-900">{item.message}</p>
-                <p className="mb-0 text-[0.98rem] text-soft">{formatDateTime(item.created_at)}</p>
-              </>
-            )}
-          </div>
-        )) : <p className="mb-0 text-[1rem] text-slate-700">Nothing here yet.</p>}
-      </div>
-    </div>
   )
 }
 

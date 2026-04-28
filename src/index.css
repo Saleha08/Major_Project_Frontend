@@ -1,9 +1,10 @@
 
 @import "tailwindcss";
+@import "./styles/tokens.css";
 
 @theme {
-  --font-sans: "Inter", sans-serif;
-  --font-display: "Poppins", "Inter", sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Poppins", "Inter", ui-sans-serif, system-ui, sans-serif;
   --color-brand-50: #f0fdf9;
   --color-brand-100: #d9fbf0;
   --color-brand-300: #75e8c0;
@@ -15,18 +16,19 @@
 
 :root {
   color-scheme: light;
-  --bg: #f8fafc;
-  --surface: rgba(255, 255, 255, 0.96);
-  --surface-strong: #ffffff;
-  --surface-muted: #f8fafc;
-  --border: rgba(15, 23, 42, 0.14);
-  --border-strong: rgba(15, 23, 42, 0.22);
-  --text: #0f172a;
-  --text-soft: #1f2937;
-  --ring: rgba(17, 179, 127, 0.28);
-  --shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
-  --shadow-hover: 0 24px 52px rgba(15, 23, 42, 0.14);
-  --hero: linear-gradient(180deg, #ffffff 0%, #f8fafc 58%, #f1f5f9 100%);
+  --bg: var(--bg-app);
+  --surface: rgba(255, 255, 255, 0.97);
+  --surface-strong: var(--bg-elevated);
+  --surface-muted: var(--bg-muted);
+  --border: var(--border-subtle);
+  --border-strong: var(--border-emphasis);
+  --text: var(--text-primary);
+  --text-soft: var(--text-secondary);
+  --text-muted: var(--text-muted);
+  --ring: var(--ring-focus);
+  --shadow: var(--shadow-md);
+  --shadow-hover: var(--shadow-lg);
+  --hero: linear-gradient(165deg, #ffffff 0%, #f0f9ff 35%, #f6f8fb 100%);
 }
 
 :root.dark {
@@ -50,19 +52,8 @@
 
 html {
   scroll-behavior: smooth;
+  /* Fixed root size avoids zoom-like scaling on large displays */
   font-size: 16px;
-}
-
-@media (min-width: 1280px) {
-  html {
-    font-size: 17px;
-  }
-}
-
-@media (min-width: 1680px) {
-  html {
-    font-size: 18px;
-  }
 }
 
 body {
@@ -168,6 +159,19 @@ a:focus-visible {
 .text-soft {
   color: var(--text-soft);
   opacity: 1;
+}
+
+.text-muted-custom {
+  color: var(--text-muted);
+}
+
+/* Spacing helpers — 8px grid */
+.cc-stack > * + * {
+  margin-top: var(--stack-gap, 1rem);
+}
+
+.cc-section-padding {
+  padding: clamp(1rem, 3vw, 2rem);
 }
 
 .hero-gradient {

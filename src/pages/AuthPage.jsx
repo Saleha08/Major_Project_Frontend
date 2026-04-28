@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { ArrowLeft, LogIn, ShieldCheck } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useApp } from '../context/useApp.js'
+import * as authService from '../services/auth.js'
 import { AlertBanner, AppLogo, Field, Input, PrimaryButton, SecondaryButton, Select } from '../components/ui.jsx'
 
 const initialForms = {
@@ -14,7 +15,7 @@ const initialForms = {
 
 function AuthPage() {
   const navigate = useNavigate()
-  const { api, persistSession } = useApp()
+  const { persistSession } = useApp()
   const [activeTab, setActiveTab] = useState('login')
   const [forms, setForms] = useState(initialForms)
   const [banner, setBanner] = useState({ tone: 'info', message: '' })
@@ -37,14 +38,14 @@ function AuthPage() {
 
     try {
       if (activeTab === 'login') {
-        const response = await api.post('/auth/login', forms.login)
+        const response = await authService.login(forms.login)
         persistSession(response.data.token, response.data.user)
         navigate('/app')
       }
 
       if (activeTab === 'register') {
         if (forms.register.role === 'COLLEGE_ADMIN') {
-          await api.post('/admin/register', {
+          await authService.registerAdmin({
             full_name: forms.register.full_name,
             email: forms.register.email,
             password: forms.register.password,
@@ -55,7 +56,7 @@ function AuthPage() {
           updateForm('admin', 'password', forms.register.password)
           setBanner({ tone: 'success', message: 'Admin account created successfully. You can sign in now.' })
         } else {
-          await api.post('/auth/register', {
+          await authService.registerStudent({
             full_name: forms.register.full_name,
             email: forms.register.email,
             password: forms.register.password,
@@ -68,13 +69,13 @@ function AuthPage() {
       }
 
       if (activeTab === 'verify') {
-        await api.post('/auth/verify-email', forms.verify)
+        await authService.verifyEmail(forms.verify)
         setBanner({ tone: 'success', message: 'Email verified. You can sign in now.' })
         setActiveTab('login')
       }
 
       if (activeTab === 'admin') {
-        const response = await api.post('/admin/login', forms.admin)
+        const response = await authService.adminLogin(forms.admin)
         persistSession(response.data.token, response.data.user)
         navigate('/app')
       }
@@ -90,7 +91,7 @@ function AuthPage() {
     setBanner({ tone: 'info', message: '' })
 
     try {
-      await api.post('/auth/resend-otp', { email: forms.verify.email })
+      await authService.resendOtp({ email: forms.verify.email })
       setBanner({ tone: 'success', message: 'A fresh OTP is on its way.' })
     } catch (error) {
       setBanner({ tone: 'danger', message: error.message })
@@ -107,9 +108,7 @@ function AuthPage() {
             <ArrowLeft className="h-5 w-5" />
             Back to home
           </Link>
-          <div className="origin-left scale-[1.14]">
-            <AppLogo />
-          </div>
+          <AppLogo />
           <div className="max-w-3xl">
             <h1 className="font-display text-[3.4rem] leading-[0.95] font-semibold tracking-tight text-slate-950 md:text-[4rem] xl:text-[4.7rem] 2xl:text-[5.15rem]">
               Sign in to the CampusConnect workspace.
@@ -129,16 +128,16 @@ function AuthPage() {
           animate={{ opacity: 1, y: 0 }}
           className="surface-panel mx-auto w-full max-w-[860px] rounded-[24px] p-9 md:p-11 xl:p-12"
         >
-          <div className="mb-8 grid grid-cols-2 gap-3 rounded-[22px] bg-slate-800 p-3 text-white md:grid-cols-4">
+          <div className="mb-8 grid grid-cols-2 gap-2 rounded-[var(--radius-xl)] border border-slate-200 bg-slate-50/90 p-2 md:grid-cols-4">
             {['login', 'register', 'verify', 'admin'].map((tab) => (
               <button
                 key={tab}
                 type="button"
                 onClick={() => setActiveTab(tab)}
-                className={`min-h-16 rounded-[18px] px-5 py-4 text-[1.08rem] font-semibold capitalize transition ${
+                className={`min-h-14 rounded-[var(--radius-lg)] px-4 py-3 text-sm font-semibold capitalize transition ${
                   activeTab === tab
-                    ? 'bg-white text-slate-900 shadow-sm'
-                    : 'text-slate-100/85 hover:bg-white/12 hover:text-white'
+                    ? 'bg-white text-slate-900 shadow-md ring-1 ring-slate-200'
+                    : 'text-slate-600 hover:bg-white/80 hover:text-slate-900'
                 }`}
               >
                 {tab === 'admin' ? 'Admin' : tab === 'verify' ? 'Verify' : tab === 'register' ? 'Register' : 'Login'}

@@ -1,46 +1,77 @@
 import { motion } from 'framer-motion'
 import Offcanvas from 'react-bootstrap/Offcanvas'
-import { Bell, Compass, LayoutDashboard, LogOut, Menu, ShieldCheck, Sparkles, UserRound } from 'lucide-react'
+import { Bell, Compass, LayoutDashboard, LogOut, Menu, Search, ShieldCheck, Sparkles, UserRound } from 'lucide-react'
 import { AppLogo } from './ui.jsx'
 
 export function AppShell({
   children,
   currentSection,
+  headerSearchPlaceholder = 'Search workspace…',
   onLogout,
   onSectionChange,
   sections,
   setSidebarOpen,
   sidebarOpen,
+  unreadNotifications = 0,
   user,
 }) {
   const roleLabel = user?.role === 'COLLEGE_ADMIN' ? 'College Admin' : 'Student Organizer'
 
   return (
     <div className="min-h-screen hero-gradient">
-      <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/92 backdrop-blur-xl">
-        <div className="mx-auto flex w-full max-w-[1800px] items-center justify-between gap-5 px-6 py-5 sm:px-8 lg:px-12 xl:px-14">
-          <div className="flex items-center gap-3">
+      <header className="sticky top-0 z-30 border-b border-slate-200/90 bg-white/95 backdrop-blur-xl">
+        <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-4 px-6 py-4 sm:px-8 lg:flex-row lg:items-center lg:justify-between lg:gap-6 lg:px-12 xl:px-14">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
             <button
               type="button"
-              className="glass-panel elevated-hover inline-flex h-12 w-12 items-center justify-center rounded-[18px] lg:hidden"
+              className="glass-panel elevated-hover inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-md)] lg:hidden"
               onClick={() => setSidebarOpen(true)}
               aria-label="Open workspace menu"
             >
               <Menu className="h-5 w-5" />
             </button>
-            <AppLogo />
+            <div className="hidden lg:block">
+              <AppLogo />
+            </div>
+            <p className="truncate font-display text-lg font-semibold text-slate-900 lg:hidden">CampusConnect</p>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="hidden min-w-[260px] rounded-[18px] border border-slate-300 bg-white px-6 py-4 text-right shadow-sm md:block">
-              <p className="mb-0 text-[1.05rem] font-semibold text-slate-900">{user?.full_name}</p>
-              <p className="mb-0 text-[0.78rem] font-semibold uppercase tracking-[0.14em] text-slate-800">{roleLabel}</p>
+          <div className="flex min-w-0 flex-1 items-center gap-3 lg:max-w-xl">
+            <label className="relative flex w-full items-center">
+              <Search className="pointer-events-none absolute left-3.5 h-4 w-4 text-slate-400" aria-hidden />
+              <input
+                type="search"
+                readOnly
+                placeholder={headerSearchPlaceholder}
+                className="w-full min-h-11 rounded-[var(--radius-lg)] border border-slate-200 bg-slate-50/90 py-2.5 pl-10 pr-4 text-sm text-slate-600 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+                aria-label="Workspace search"
+              />
+            </label>
+          </div>
+
+          <div className="flex shrink-0 items-center justify-end gap-3">
+            <button
+              type="button"
+              className="relative inline-flex h-11 w-11 items-center justify-center rounded-[var(--radius-md)] border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-brand-300 hover:text-brand-600"
+              onClick={() => onSectionChange('notifications')}
+              aria-label={`Notifications${unreadNotifications ? `, ${unreadNotifications} unread` : ''}`}
+            >
+              <Bell className="h-5 w-5" />
+              {unreadNotifications > 0 ? (
+                <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-500 px-1 text-[10px] font-bold text-white">
+                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                </span>
+              ) : null}
+            </button>
+            <div className="hidden min-w-[200px] rounded-[var(--radius-lg)] border border-slate-200 bg-white px-4 py-3 text-right shadow-sm sm:block">
+              <p className="mb-0 truncate text-sm font-semibold text-slate-900">{user?.full_name}</p>
+              <p className="mb-0 text-[0.7rem] font-semibold uppercase tracking-wider text-slate-500">{roleLabel}</p>
             </div>
           </div>
         </div>
       </header>
 
-      <div className="mx-auto grid w-full max-w-[1800px] grid-cols-1 gap-8 px-6 py-8 sm:px-8 lg:grid-cols-[420px_minmax(0,1fr)] lg:gap-10 lg:px-12 xl:px-14">
+      <div className="mx-auto grid w-full max-w-[1800px] grid-cols-1 gap-8 px-6 py-8 sm:px-8 lg:grid-cols-[minmax(280px,380px)_minmax(0,1fr)] lg:gap-10 lg:px-12 xl:px-14">
         <aside className="hidden lg:block">
           <SidebarCard
             currentSection={currentSection}

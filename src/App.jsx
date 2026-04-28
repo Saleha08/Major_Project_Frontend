@@ -1,20 +1,28 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { SkeletonCard } from './components/ui.jsx'
 import { useApp } from './context/useApp.js'
-import HomePage from './pages/HomePage.jsx'
-import AuthPage from './pages/AuthPage.jsx'
-import WorkspacePage from './pages/WorkspacePage.jsx'
+
+const HomePage = lazy(() => import('./pages/HomePage.jsx'))
+const AuthPage = lazy(() => import('./pages/AuthPage.jsx'))
+const WorkspacePage = lazy(() => import('./pages/WorkspacePage.jsx'))
+
+function PageFallback() {
+  return (
+    <div className="hero-gradient flex min-h-screen items-center justify-center p-8">
+      <div className="w-full max-w-lg space-y-4">
+        <SkeletonCard />
+        <p className="text-center text-sm text-slate-600">Loading…</p>
+      </div>
+    </div>
+  )
+}
 
 function ProtectedRoute({ children }) {
   const { booting, token } = useApp()
 
   if (booting) {
-    return (
-      <div className="hero-gradient flex min-h-screen items-center justify-center">
-        <div className="glass-panel rounded-[28px] px-6 py-5 text-sm text-soft">
-          Loading CampusConnect...
-        </div>
-      </div>
-    )
+    return <PageFallback />
   }
 
   if (!token) {
@@ -27,18 +35,20 @@ function ProtectedRoute({ children }) {
 function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/auth" element={<AuthPage />} />
-        <Route
-          path="/app"
-          element={(
-            <ProtectedRoute>
-              <WorkspacePage />
-            </ProtectedRoute>
-          )}
-        />
-      </Routes>
+      <Suspense fallback={<PageFallback />}>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/auth" element={<AuthPage />} />
+          <Route
+            path="/app"
+            element={(
+              <ProtectedRoute>
+                <WorkspacePage />
+              </ProtectedRoute>
+            )}
+          />
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   )
 }

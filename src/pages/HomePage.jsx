@@ -2,12 +2,11 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { ArrowRight, CalendarCheck2, LayoutPanelTop, ShieldCheck, UsersRound } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { useApp } from '../context/useApp.js'
+import * as eventsService from '../services/events.js'
 import { formatDate, toArray } from '../lib/api.js'
-import { AppLogo, Pill, PrimaryButton, SearchInput, SectionCard, StatCard } from '../components/ui.jsx'
+import { AppLogo, Pill, PrimaryButton, SearchInput, SectionCard, Select, StatCard } from '../components/ui.jsx'
 
 function HomePage() {
-  const { api } = useApp()
   const [events, setEvents] = useState([])
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('')
@@ -19,21 +18,24 @@ function HomePage() {
     if (category) query.set('category', category)
     query.set('limit', '6')
 
-    api.get(`/events?${query.toString()}`)
+    eventsService.fetchPublicEvents(null, Object.fromEntries(query))
       .then((response) => {
         setEvents(response.data?.events || [])
       })
       .catch((error) => {
         setMessage(error.message)
       })
-  }, [api, search, category])
+  }, [search, category])
 
   return (
     <div className="min-h-screen hero-gradient">
       <header className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8">
         <AppLogo />
         <div className="flex items-center gap-3">
-          <Link to="/auth" className="hidden rounded-2xl px-4 py-2 text-sm font-medium text-slate-700 transition hover:text-brand-600 dark:text-slate-200 dark:hover:text-brand-300 sm:inline-flex">
+          <Link
+            to="/auth"
+            className="hidden rounded-[var(--radius-lg)] border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-brand-200 hover:text-brand-600 sm:inline-flex"
+          >
             Sign in
           </Link>
         </div>
@@ -47,10 +49,10 @@ function HomePage() {
             className="surface-panel rounded-[32px] p-6 md:p-8"
           >
             <Pill tone="success">Campus communities that move fast</Pill>
-            <h1 className="mt-4 max-w-2xl font-display text-4xl font-semibold tracking-tight text-slate-950 dark:text-white md:text-6xl">
+            <h1 className="mt-4 max-w-2xl font-display text-4xl font-semibold tracking-tight text-slate-950 md:text-6xl">
               Discover events, recruit collaborators, and keep every campus opportunity in one flow.
             </h1>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-soft md:text-lg">
+            <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600 md:text-lg">
               CampusConnect brings student events, applications, student discovery, and admin approvals into one responsive workspace.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
@@ -60,7 +62,10 @@ function HomePage() {
                   <ArrowRight className="h-4 w-4" />
                 </PrimaryButton>
               </Link>
-              <a href="#events" className="inline-flex min-h-11 items-center rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-brand-300 hover:text-brand-600 dark:border-slate-700 dark:text-slate-200">
+              <a
+                href="#events"
+                className="inline-flex min-h-11 items-center rounded-[var(--radius-lg)] border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-brand-300 hover:text-brand-600"
+              >
                 Browse live events
               </a>
             </div>
@@ -95,21 +100,21 @@ function HomePage() {
           title="Featured events"
           description="Publicly approved opportunities pulled from your backend."
           className="scroll-mt-20"
-          action={<Link to="/auth" className="text-sm font-medium text-brand-600 dark:text-brand-300">Open full workspace</Link>}
+          action={<Link to="/auth" className="text-sm font-medium text-brand-600 hover:underline">Open full workspace</Link>}
         >
           <div id="events" className="mb-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
             <SearchInput value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by title, event name, or description" />
-            <select
+            <Select
               value={category}
               onChange={(event) => setCategory(event.target.value)}
-              className="w-full rounded-2xl border border-slate-200 bg-white/85 px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900/70"
+              className="min-h-11 rounded-[var(--radius-lg)] text-sm"
               aria-label="Filter events by category"
             >
               <option value="">All categories</option>
               <option value="TECH">Tech</option>
               <option value="CULTURAL">Cultural</option>
               <option value="SPORTS">Sports</option>
-            </select>
+            </Select>
           </div>
 
           {message ? <p className="mb-4 text-sm text-rose-500">{message}</p> : null}
@@ -130,14 +135,14 @@ function HomePage() {
                   <Pill tone="default">{event.status}</Pill>
                 </div>
                 <h3 className="mb-2 font-display text-xl font-semibold tracking-tight">{event.title}</h3>
-                <p className="mb-4 text-sm text-soft">{event.description}</p>
-                <div className="mt-auto space-y-3 text-sm text-soft">
-                  <p className="mb-0"><span className="font-medium text-slate-700 dark:text-slate-200">Event:</span> {event.event_name}</p>
-                  <p className="mb-0"><span className="font-medium text-slate-700 dark:text-slate-200">Organizer:</span> {event.organizer?.full_name || 'Campus team'}</p>
-                  <p className="mb-0"><span className="font-medium text-slate-700 dark:text-slate-200">Deadline:</span> {formatDate(event.deadline)}</p>
+                <p className="mb-4 text-sm text-slate-600">{event.description}</p>
+                <div className="mt-auto space-y-3 text-sm text-slate-600">
+                  <p className="mb-0"><span className="font-medium text-slate-800">Event:</span> {event.event_name}</p>
+                  <p className="mb-0"><span className="font-medium text-slate-800">Organizer:</span> {event.organizer?.full_name || 'Campus team'}</p>
+                  <p className="mb-0"><span className="font-medium text-slate-800">Deadline:</span> {formatDate(event.deadline)}</p>
                   <div className="flex flex-wrap gap-2 pt-2">
                     {toArray(event.required_skills).slice(0, 3).map((skill) => (
-                      <span key={skill} className="rounded-full bg-white/80 px-3 py-1 text-xs dark:bg-slate-900/70">{skill}</span>
+                      <span key={skill} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">{skill}</span>
                     ))}
                   </div>
                 </div>
@@ -152,12 +157,12 @@ function HomePage() {
 
 function FeatureCard({ icon: Icon, title, text }) {
   return (
-    <motion.article whileHover={{ y: -4 }} className="glass-panel rounded-[28px] p-5">
-      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 text-white dark:bg-brand-500/20 dark:text-brand-200">
+    <motion.article whileHover={{ y: -4 }} className="glass-panel rounded-[var(--radius-xl)] p-6 shadow-sm">
+      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-600 text-white shadow-md">
         <Icon className="h-5 w-5" />
       </div>
       <h2 className="mb-2 font-display text-xl font-semibold">{title}</h2>
-      <p className="mb-0 text-sm leading-6 text-soft">{text}</p>
+      <p className="mb-0 text-sm leading-6 text-slate-600">{text}</p>
     </motion.article>
   )
 }

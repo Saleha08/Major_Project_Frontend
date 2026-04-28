@@ -1,5 +1,7 @@
+import { useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { LoaderCircle, MoonStar, Search, SunMedium } from 'lucide-react'
+import Modal from 'react-bootstrap/Modal'
+import { ChevronLeft, ChevronRight, LoaderCircle, MoonStar, Search, SunMedium } from 'lucide-react'
 
 export function AppLogo() {
   return (
@@ -193,4 +195,205 @@ export function AlertBanner({ tone = 'info', message, onClose }) {
       </motion.div>
     </AnimatePresence>
   )
+}
+
+const buttonVariants = {
+  primary: 'bg-brand-500 text-white shadow-lg shadow-brand-500/20 hover:bg-brand-600 hover:-translate-y-0.5',
+  secondary: 'border border-slate-300 bg-white text-slate-800 shadow-sm hover:border-brand-300 hover:text-brand-600 dark:border-slate-600 dark:bg-slate-900/80 dark:text-slate-100',
+  outline: 'border border-slate-300 bg-transparent text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-100 dark:hover:bg-slate-800/50',
+  ghost: 'bg-transparent text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80',
+}
+
+/** Unified button — variants: primary | secondary | outline | ghost */
+export function Button({
+  variant = 'primary',
+  size = 'md',
+  busy = false,
+  leftIcon: LeftIcon,
+  rightIcon: RightIcon,
+  className = '',
+  children,
+  disabled,
+  ...props
+}) {
+  const sizes = {
+    sm: 'min-h-10 px-4 py-2 text-sm rounded-xl gap-1.5',
+    md: 'min-h-12 px-5 py-3 text-[1rem] rounded-[14px] gap-2',
+    lg: 'min-h-14 px-6 py-4 text-[1.02rem] rounded-[16px] gap-2',
+  }
+
+  return (
+    <button
+      type="button"
+      disabled={busy || disabled}
+      className={`inline-flex items-center justify-center font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${sizes[size]} ${buttonVariants[variant]} ${className}`}
+      {...props}
+    >
+      {busy ? <LoaderCircle className="h-4 w-4 shrink-0 animate-spin" /> : null}
+      {!busy && LeftIcon ? <LeftIcon className="h-4 w-4 shrink-0" /> : null}
+      {children}
+      {!busy && RightIcon ? <RightIcon className="h-4 w-4 shrink-0" /> : null}
+    </button>
+  )
+}
+
+export function Card({ children, className = '', padding = 'md', interactive = false }) {
+  const paddings = { sm: 'p-4', md: 'p-6', lg: 'p-8' }
+
+  return (
+    <div
+      className={`rounded-[var(--radius-xl)] border border-slate-200/90 bg-[var(--surface-strong)] shadow-[var(--shadow-sm)] ${interactive ? 'transition hover:border-brand-200 hover:shadow-md' : ''} ${paddings[padding]} ${className}`}
+    >
+      {children}
+    </div>
+  )
+}
+
+export function AppModal({
+  show,
+  onHide,
+  title,
+  children,
+  footer,
+  size,
+}) {
+  return (
+    <Modal show={show} onHide={onHide} centered size={size} contentClassName="rounded-2xl border-0 shadow-2xl overflow-hidden">
+      <Modal.Header closeButton className="border-b border-slate-100 bg-white px-6 py-4">
+        <Modal.Title className="font-display text-xl font-semibold text-slate-900">{title}</Modal.Title>
+      </Modal.Header>
+      <Modal.Body className="px-6 py-5">{children}</Modal.Body>
+      {footer ? <Modal.Footer className="border-t border-slate-100 bg-slate-50/80 px-6 py-4">{footer}</Modal.Footer> : null}
+    </Modal>
+  )
+}
+
+export function DataTable({
+  columns,
+  rows,
+  pageSize = 8,
+  emptyMessage = 'No rows to display.',
+}) {
+  const [page, setPage] = useState(1)
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
+  const safePage = Math.min(page, totalPages)
+
+  const slice = useMemo(() => {
+    const start = (safePage - 1) * pageSize
+    return rows.slice(start, start + pageSize)
+  }, [rows, safePage, pageSize])
+
+  if (!rows.length) {
+    return (
+      <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-6 py-10 text-center text-sm text-slate-600">
+        {emptyMessage}
+      </div>
+    )
+  }
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+      <table className="w-full min-w-[520px] border-collapse text-left text-sm">
+        <thead>
+          <tr className="border-b border-slate-200 bg-slate-50/90">
+            {columns.map((col) => (
+              <th key={col.key} scope="col" className="whitespace-nowrap px-4 py-3 font-semibold text-slate-700">
+                {col.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {slice.map((row, ri) => (
+            <tr key={row.id ?? ri} className="border-b border-slate-100 transition hover:bg-slate-50/90">
+              {columns.map((col) => (
+                <td key={col.key} className="px-4 py-3 text-slate-800">
+                  {col.render ? col.render(row) : row[col.key]}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/80 px-4 py-3">
+        <p className="mb-0 text-xs text-slate-600">
+          Page {safePage} of {totalPages} · {rows.length} total
+        </p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-100 disabled:opacity-40"
+            disabled={safePage <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            aria-label="Previous page"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-100 disabled:opacity-40"
+            disabled={safePage >= totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            aria-label="Next page"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function Skeleton({ className = '' }) {
+  return (
+    <div
+      className={`animate-pulse rounded-lg bg-gradient-to-r from-slate-100 via-slate-200/80 to-slate-100 bg-[length:200%_100%] ${className}`}
+      aria-hidden
+    />
+  )
+}
+
+export function SkeletonCard() {
+  return (
+    <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-6">
+      <Skeleton className="h-4 w-1/3" />
+      <Skeleton className="h-10 w-full" />
+      <Skeleton className="h-10 w-full" />
+    </div>
+  )
+}
+
+export function ErrorState({ title = 'Something went wrong', message, action }) {
+  return (
+    <div className="rounded-2xl border border-rose-200 bg-rose-50/90 px-6 py-8 text-center">
+      <h3 className="mb-2 font-display text-lg font-semibold text-rose-900">{title}</h3>
+      <p className="mb-4 text-sm text-rose-800/90">{message}</p>
+      {action}
+    </div>
+  )
+}
+
+export function Badge({ children, variant = 'neutral' }) {
+  const map = {
+    neutral: 'bg-slate-100 text-slate-700',
+    success: 'bg-emerald-100 text-emerald-800',
+    warning: 'bg-amber-100 text-amber-900',
+    danger: 'bg-rose-100 text-rose-800',
+    info: 'bg-sky-100 text-sky-900',
+    brand: 'bg-brand-100 text-brand-800',
+  }
+
+  return (
+    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${map[variant]}`}>
+      {children}
+    </span>
+  )
+}
+
+export function FieldError({ message }) {
+  if (!message) {
+    return null
+  }
+
+  return <p className="mt-1.5 text-sm font-medium text-rose-600" role="alert">{message}</p>
 }
