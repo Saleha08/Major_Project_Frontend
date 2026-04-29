@@ -10,6 +10,7 @@ import {
   Compass,
   LayoutDashboard,
   Mail,
+  MessageSquare,
   PieChart,
   SearchCode,
   ShieldCheck,
@@ -53,6 +54,7 @@ import { buildDerivedAnalytics, buildStudentDerivedAnalytics } from '../lib/work
 import * as adminService from '../services/admin.js'
 import * as applicationsService from '../services/applications.js'
 import * as authService from '../services/auth.js'
+import * as chatService from '../services/chat.js'
 import * as dashboardService from '../services/dashboard.js'
 import * as eventsService from '../services/events.js'
 import * as notificationsService from '../services/notifications.js'
@@ -84,6 +86,7 @@ const defaultEmailForm = {
   target: 'ALL',
 }
 
+const CHAT_ELIGIBLE_STATUSES = ['PENDING', 'SHORTLISTED', 'SELECTED', 'COMPLETED']
 const BRANCH_OPTIONS = ['CSE', 'IT', 'MECH', 'CIVIL', 'ENTC', 'ECE', 'AIML']
 const YEAR_OPTIONS = ['1', '2', '3', '4']
 
@@ -114,6 +117,24 @@ function mapRecordToEventForm(record) {
   }
 }
 
+function buildChatKey(eventId, otherUserId) {
+  return `${eventId}:${otherUserId}`
+}
+
+function toChatSelection({ event, otherUser }) {
+  if (!event?.id || !otherUser?.id) {
+    return null
+  }
+
+  return {
+    key: buildChatKey(event.id, otherUser.id),
+    eventId: event.id,
+    eventTitle: event.title || event.event_name || 'Untitled event',
+    otherUserId: otherUser.id,
+    otherUserName: otherUser.full_name || 'Participant',
+  }
+}
+
 function WorkspacePage() {
   const navigate = useNavigate()
   const { logout, persistSession, token, user } = useApp()
@@ -133,6 +154,12 @@ function WorkspacePage() {
   const [applyModal, setApplyModal] = useState({ open: false, eventId: '', eventTitle: '' })
   const [applyMessage, setApplyMessage] = useState('')
   const [selectedEventId, setSelectedEventId] = useState('')
+  const [chatConversations, setChatConversations] = useState([])
+  const [chatSelection, setChatSelection] = useState(null)
+  const [chatMessages, setChatMessages] = useState([])
+  const [chatDraft, setChatDraft] = useState('')
+  const [chatPagination, setChatPagination] = useState(null)
+  const [chatLoading, setChatLoading] = useState({ conversations: false, messages: false })
   const [dashboardAnalytics, setDashboardAnalytics] = useState(null)
   const [dashboardFilters, setDashboardFilters] = useState({
     department: '',
@@ -175,6 +202,7 @@ function WorkspacePage() {
         { key: 'saved', label: 'Saved', icon: Bookmark },
         { key: 'events', label: 'My Events', icon: CalendarPlus2 },
         { key: 'applications', label: 'Applications', icon: Briefcase },
+        { key: 'chats', label: 'Chats', icon: MessageSquare },
         { key: 'students', label: 'Students', icon: SearchCode },
         { key: 'notifications', label: 'Notifications', icon: Bell },
         { key: 'profile', label: 'Profile', icon: UserRound },
@@ -557,6 +585,66 @@ function WorkspacePage() {
     }
   }, [token])
 
+  const loadChatConversations = useCallback(async () => {
+    setChatLoading((current) => ({ ...current, conversations: true }))
+
+    try {
+      const response = await chatService.fetchConversations(token)
+      const conversations = response.data?.conversations || []
+      setChatConversations(conversations)
+      setChatSelection((current) => {
+        if (!current) {
+          return current
+        }
+
+        const match = conversations.find((item) => buildChatKey(item.event?.id, item.other_user?.id) === current.key)
+        return match ? toChatSelection({ event: match.event, otherUser: match.other_user }) : current
+      })
+    } catch (error) {
+      setBanner({ tone: 'danger', message: error.message })
+    } finally {
+      setChatLoading((current) => ({ ...current, conversations: false }))
+    }
+  }, [token])
+
+  const loadChatHistory = useCallback(async (selection) => {
+    if (!selection) {
+      setChatMessages([])
+      setChatPagination(null)
+      return
+    }
+
+    setChatLoading((current) => ({ ...current, messages: true }))
+
+    try {
+      const response = await chatService.fetchChatHistory({
+        eventId: selection.eventId,
+        otherUserId: selection.otherUserId,
+        page: 1,
+        limit: 50,
+      }, token)
+
+      setChatMessages(response.data?.messages || [])
+      setChatPagination(response.data?.pagination || null)
+    } catch (error) {
+      setChatMessages([])
+      setChatPagination(null)
+      setBanner({ tone: 'danger', message: error.message })
+    } finally {
+      setChatLoading((current) => ({ ...current, messages: false }))
+    }
+  }, [token])
+
+  function openChatThread(selection) {
+    if (!selection) {
+      return
+    }
+
+    setChatSelection(selection)
+    setChatDraft('')
+    setCurrentSection('chats')
+  }
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       refreshWorkspace()
@@ -586,7 +674,27 @@ function WorkspacePage() {
   }, [fetchEventApplications, selectedEventId, token])
 
   useEffect(() => {
-    if (isAdmin && ['discover', 'saved', 'events', 'applications', 'students', 'profile', 'dashboard'].includes(currentSection)) {
+    if (currentSection === 'chats' && token) {
+      const timer = window.setTimeout(() => {
+        loadChatConversations()
+      }, 0)
+
+      return () => window.clearTimeout(timer)
+    }
+  }, [currentSection, loadChatConversations, token])
+
+  useEffect(() => {
+    if (chatSelection && token) {
+      const timer = window.setTimeout(() => {
+        loadChatHistory(chatSelection)
+      }, 0)
+
+      return () => window.clearTimeout(timer)
+    }
+  }, [chatSelection, loadChatHistory, token])
+
+  useEffect(() => {
+    if (isAdmin && ['discover', 'saved', 'events', 'applications', 'chats', 'students', 'profile', 'dashboard'].includes(currentSection)) {
       const timer = window.setTimeout(() => {
         setCurrentSection('overview')
       }, 0)
@@ -707,6 +815,41 @@ function WorkspacePage() {
     }
   }
 
+  async function handleSendChatMessage(event) {
+    event.preventDefault()
+
+    if (!chatSelection) {
+      setBanner({ tone: 'danger', message: 'Choose a conversation first.' })
+      return
+    }
+
+    if (!chatDraft.trim()) {
+      setBanner({ tone: 'danger', message: 'Write a message before sending.' })
+      return
+    }
+
+    setBusy('chat-send')
+
+    try {
+      const response = await chatService.sendMessage({
+        receiver_id: chatSelection.otherUserId,
+        event_id: chatSelection.eventId,
+        message: chatDraft.trim(),
+      }, token)
+
+      const createdMessage = response.data?.message
+      if (createdMessage) {
+        setChatMessages((current) => [...current, createdMessage])
+      }
+      setChatDraft('')
+      await loadChatConversations()
+    } catch (error) {
+      setBanner({ tone: 'danger', message: error.message })
+    } finally {
+      setBusy('')
+    }
+  }
+
   const da = dashboardAnalytics
   const summary = da?.summary || {}
 
@@ -755,6 +898,17 @@ function WorkspacePage() {
 
   const selectedEvent = workspace.myEvents.find((item) => item.id === selectedEventId) || null
   const savedEventIds = new Set(workspace.savedEvents.map((item) => item.id))
+  const conversationKeys = new Set(chatConversations.map((item) => buildChatKey(item.event?.id, item.other_user?.id)))
+  const applicationChatStarters = workspace.myApplications
+    .filter((application) => CHAT_ELIGIBLE_STATUSES.includes(application.status))
+    .map((application) => ({
+      selection: toChatSelection({
+        event: application.event,
+        otherUser: application.event?.organizer,
+      }),
+      status: application.status,
+    }))
+    .filter((item) => item.selection && !conversationKeys.has(item.selection.key))
 
   const filterToolbar = (
     <div className="mb-6 flex flex-col gap-4 rounded-[var(--radius-xl)] border border-slate-200 bg-slate-50/90 p-4 md:flex-row md:flex-wrap md:items-end">
@@ -1203,6 +1357,18 @@ function WorkspacePage() {
                               {status}
                             </Button>
                           ))}
+                          {CHAT_ELIGIBLE_STATUSES.includes(application.status) ? (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => openChatThread(toChatSelection({
+                                event: selectedEvent,
+                                otherUser: application.student,
+                              }))}
+                            >
+                              Open chat
+                            </Button>
+                          ) : null}
                         </div>
                       </div>
                     )) : <EmptyState title="No applications yet" message="Applications appear here after students apply." />}
@@ -1287,6 +1453,24 @@ function WorkspacePage() {
                     label: 'Note',
                     render: (row) => row.message || '—',
                   },
+                  {
+                    key: 'chat',
+                    label: 'Chat',
+                    render: (row) => (
+                      CHAT_ELIGIBLE_STATUSES.includes(row.status) ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openChatThread(toChatSelection({
+                            event: row.event,
+                            otherUser: row.event?.organizer,
+                          }))}
+                        >
+                          Message organizer
+                        </Button>
+                      ) : 'Unavailable'
+                    ),
+                  },
                 ]}
                 rows={workspace.myApplications}
                 pageSize={8}
@@ -1295,6 +1479,144 @@ function WorkspacePage() {
               <EmptyState title="No applications yet" message="Discover an event and send your first application." />
             )}
           </SectionCard>
+        ) : null}
+
+        {!isAdmin && currentSection === 'chats' ? (
+          <div className="grid gap-7 xl:grid-cols-[0.92fr_1.08fr]">
+            <SectionCard
+              title="Conversations"
+              description="Event-specific messaging between organizers and applicants."
+              action={(
+                <SecondaryButton onClick={loadChatConversations} disabled={chatLoading.conversations}>
+                  Refresh
+                </SecondaryButton>
+              )}
+            >
+              <div className="space-y-3">
+                {chatConversations.map((conversation) => {
+                  const selection = toChatSelection({
+                    event: conversation.event,
+                    otherUser: conversation.other_user,
+                  })
+                  const active = selection?.key === chatSelection?.key
+
+                  return (
+                    <button
+                      key={selection?.key || `${conversation.event?.id}-${conversation.other_user?.id}`}
+                      type="button"
+                      onClick={() => openChatThread(selection)}
+                      className={`w-full rounded-[var(--radius-xl)] border p-5 text-left transition ${
+                        active
+                          ? 'border-brand-400 bg-brand-50/60 shadow-sm'
+                          : 'border-slate-200 bg-white hover:border-brand-200'
+                      }`}
+                    >
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <h3 className="mb-0 font-display text-lg font-semibold text-slate-950">{conversation.other_user?.full_name}</h3>
+                        <span className="text-xs font-medium text-slate-500">{formatDateTime(conversation.last_message?.created_at)}</span>
+                      </div>
+                      <p className="mb-1 text-sm font-medium text-slate-700">{conversation.event?.title || conversation.event?.event_name}</p>
+                      <p className="mb-0 line-clamp-2 text-sm leading-7 text-slate-600">{conversation.last_message?.message || 'Start the conversation.'}</p>
+                    </button>
+                  )
+                })}
+
+                {!chatConversations.length && chatLoading.conversations ? <SkeletonCard /> : null}
+
+                {!chatConversations.length && !chatLoading.conversations ? (
+                  <EmptyState
+                    title="No conversations yet"
+                    message="Open chat from an eligible application or applicant card to start messaging."
+                  />
+                ) : null}
+              </div>
+
+              {applicationChatStarters.length ? (
+                <div className="mt-6 border-t border-slate-200 pt-6">
+                  <h3 className="mb-3 font-display text-lg font-semibold text-slate-900">Available to start</h3>
+                  <div className="space-y-3">
+                    {applicationChatStarters.map((item) => (
+                      <Card key={item.selection.key} padding="md" className="border-slate-200/90">
+                        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="mb-1 text-base font-semibold text-slate-950">{item.selection.otherUserName}</p>
+                            <p className="mb-0 text-sm text-slate-600">{item.selection.eventTitle}</p>
+                          </div>
+                          <Pill tone={item.status === 'PENDING' ? 'warn' : 'success'}>{item.status}</Pill>
+                        </div>
+                        <SecondaryButton type="button" onClick={() => openChatThread(item.selection)}>
+                          Start chat
+                        </SecondaryButton>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </SectionCard>
+
+            <SectionCard
+              title={chatSelection ? chatSelection.otherUserName : 'Choose a conversation'}
+              description={chatSelection ? `About ${chatSelection.eventTitle}` : 'Select a thread to view message history.'}
+            >
+              {chatSelection ? (
+                <>
+                  <div className="mb-5 flex flex-wrap items-center gap-2">
+                    <Pill tone="info">{chatSelection.eventTitle}</Pill>
+                    {chatPagination?.total ? <Pill tone="default">{chatPagination.total} messages</Pill> : null}
+                  </div>
+
+                  <div className="space-y-3">
+                    {chatLoading.messages ? <SkeletonCard /> : null}
+
+                    {!chatLoading.messages && chatMessages.length ? chatMessages.map((item) => {
+                      const mine = item.sender_id === user?.id
+
+                      return (
+                        <div key={item.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[85%] rounded-[20px] px-5 py-4 shadow-sm ${mine ? 'bg-brand-500 text-white' : 'border border-slate-200 bg-white text-slate-900'}`}>
+                            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] opacity-70">
+                              {mine ? 'You' : chatSelection.otherUserName}
+                            </p>
+                            <p className="mb-2 whitespace-pre-wrap text-sm leading-7">{item.message}</p>
+                            <p className={`mb-0 text-xs ${mine ? 'text-white/80' : 'text-slate-500'}`}>{formatDateTime(item.created_at)}</p>
+                          </div>
+                        </div>
+                      )
+                    }) : null}
+
+                    {!chatLoading.messages && !chatMessages.length ? (
+                      <EmptyState
+                        title="No messages yet"
+                        message="Send the first message to start this event conversation."
+                      />
+                    ) : null}
+                  </div>
+
+                  <form onSubmit={handleSendChatMessage} className="mt-6 border-t border-slate-200 pt-6">
+                    <Field label="Message">
+                      <Textarea
+                        value={chatDraft}
+                        onChange={(event) => setChatDraft(event.target.value)}
+                        placeholder={`Write to ${chatSelection.otherUserName}`}
+                        className="min-h-32"
+                      />
+                    </Field>
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      <PrimaryButton type="submit" busy={busy === 'chat-send'}>Send message</PrimaryButton>
+                      <SecondaryButton type="button" onClick={() => setChatDraft('')} disabled={busy === 'chat-send'}>
+                        Clear
+                      </SecondaryButton>
+                    </div>
+                  </form>
+                </>
+              ) : (
+                <EmptyState
+                  title="Pick a chat"
+                  message="Choose an existing conversation on the left, or start one from your applications and applicant lists."
+                />
+              )}
+            </SectionCard>
+          </div>
         ) : null}
 
         {!isAdmin && currentSection === 'students' ? (
