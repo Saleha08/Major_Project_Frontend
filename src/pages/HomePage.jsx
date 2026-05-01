@@ -33,24 +33,24 @@ function HomePage() {
       <header className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8">
         <AppLogo />
         <div className="flex items-center gap-3">
-          <Link to="/auth" className="hidden rounded-2xl px-4 py-2 text-sm font-medium text-slate-700 transition hover:text-brand-600 dark:text-slate-200 dark:hover:text-brand-300 sm:inline-flex">
+          <Link to="/auth" className="hidden rounded-lg border border-slate-200 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-brand-300 hover:text-brand-600 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:text-brand-300 sm:inline-flex">
             Sign in
           </Link>
         </div>
       </header>
 
       <main className="mx-auto flex max-w-7xl flex-col gap-8 px-4 pb-8 sm:px-6 lg:px-8">
-        <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+        <section className="grid gap-6 lg:grid-cols-[1.18fr_0.82fr]">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            className="surface-panel rounded-[32px] p-6 md:p-8"
+            className="surface-panel enterprise-strip p-6 md:p-9"
           >
             <Pill tone="success">Campus communities that move fast</Pill>
-            <h1 className="mt-4 max-w-2xl font-display text-4xl font-semibold tracking-tight text-slate-950 dark:text-white md:text-6xl">
+            <h1 className="mt-5 max-w-3xl font-display text-4xl font-semibold tracking-tight text-slate-950 dark:text-white md:text-6xl">
               Discover events, recruit collaborators, and keep every campus opportunity in one flow.
             </h1>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-soft md:text-lg">
+            <p className="mt-5 max-w-2xl text-base leading-7 text-soft md:text-lg">
               CampusConnect brings student events, applications, student discovery, and admin approvals into one responsive workspace.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
@@ -60,7 +60,7 @@ function HomePage() {
                   <ArrowRight className="h-4 w-4" />
                 </PrimaryButton>
               </Link>
-              <a href="#events" className="inline-flex min-h-11 items-center rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-brand-300 hover:text-brand-600 dark:border-slate-700 dark:text-slate-200">
+              <a href="#events" className="inline-flex min-h-12 items-center rounded-lg border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-brand-300 hover:text-brand-600 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200">
                 Browse live events
               </a>
             </div>
@@ -121,7 +121,7 @@ function HomePage() {
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
-                className="glass-panel flex h-full flex-col rounded-[28px] p-5"
+                className="glass-panel enterprise-strip flex h-full flex-col p-5"
               >
                 <div className="mb-4 flex items-center justify-between">
                   <Pill tone={event.category === 'TECH' ? 'info' : event.category === 'SPORTS' ? 'warn' : 'success'}>
@@ -137,7 +137,7 @@ function HomePage() {
                   <p className="mb-0"><span className="font-medium text-slate-700 dark:text-slate-200">Deadline:</span> {formatDate(event.deadline)}</p>
                   <div className="flex flex-wrap gap-2 pt-2">
                     {toArray(event.required_skills).slice(0, 3).map((skill) => (
-                      <span key={skill} className="rounded-full bg-white/80 px-3 py-1 text-xs dark:bg-slate-900/70">{skill}</span>
+                      <span key={skill} className="rounded-md bg-white/80 px-3 py-1 text-xs font-semibold dark:bg-slate-900/70">{skill}</span>
                     ))}
                   </div>
                 </div>
@@ -152,8 +152,8 @@ function HomePage() {
 
 function FeatureCard({ icon: Icon, title, text }) {
   return (
-    <motion.article whileHover={{ y: -4 }} className="glass-panel rounded-[28px] p-5">
-      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 text-white dark:bg-brand-500/20 dark:text-brand-200">
+    <motion.article whileHover={{ y: -4 }} className="glass-panel enterprise-strip p-5">
+      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-slate-950 text-white dark:bg-brand-500/20 dark:text-brand-200">
         <Icon className="h-5 w-5" />
       </div>
       <h2 className="mb-2 font-display text-xl font-semibold">{title}</h2>

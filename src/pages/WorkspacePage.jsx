@@ -1087,7 +1087,7 @@ function EventCard({ event, isSaved = false, onToggleSaved, onApply, saveBusy = 
   const SaveIcon = isSaved ? BookmarkCheck : Bookmark
 
   return (
-    <motion.article whileHover={{ y: -4 }} className="glass-panel elevated-hover flex h-full flex-col rounded-[20px] p-6">
+    <motion.article whileHover={{ y: -4 }} className="glass-panel elevated-hover enterprise-strip flex h-full flex-col p-6">
       <div className="mb-5 flex items-center justify-between">
         <Pill tone={event.category === 'TECH' ? 'info' : event.category === 'CULTURAL' ? 'success' : 'warn'}>
           {event.category}
@@ -1099,7 +1099,7 @@ function EventCard({ event, isSaved = false, onToggleSaved, onApply, saveBusy = 
               type="button"
               onClick={() => onToggleSaved(!isSaved)}
               disabled={saveBusy}
-              className={`inline-flex h-10 w-10 items-center justify-center rounded-full border transition ${
+              className={`inline-flex h-10 w-10 items-center justify-center rounded-lg border transition ${
                 isSaved
                   ? 'border-brand-200 bg-brand-50 text-brand-600'
                   : 'border-slate-200 bg-white text-slate-500 hover:border-brand-300 hover:text-brand-600'
@@ -1120,7 +1120,7 @@ function EventCard({ event, isSaved = false, onToggleSaved, onApply, saveBusy = 
       </div>
       <div className="mb-6 flex flex-wrap gap-2">
         {toArray(event.required_skills).slice(0, 4).map((skill) => (
-          <span key={skill} className="rounded-full bg-white/90 px-3.5 py-2 text-[0.9rem] font-medium dark:bg-slate-900/70">{skill}</span>
+          <span key={skill} className="rounded-md bg-white/90 px-3.5 py-2 text-[0.9rem] font-semibold dark:bg-slate-900/70">{skill}</span>
         ))}
       </div>
       <div className="mt-auto flex gap-3">
@@ -1137,11 +1137,11 @@ function EventCard({ event, isSaved = false, onToggleSaved, onApply, saveBusy = 
 
 function SnapshotList({ title, items, type }) {
   return (
-    <div className="rounded-[20px] border border-slate-200/90 bg-white/80 p-8">
-      <h3 className="mb-6 font-display text-[2rem] font-semibold text-slate-950">{title}</h3>
+    <div className="enterprise-strip rounded-lg border border-slate-200/90 bg-white/80 p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900/50">
+      <h3 className="mb-5 font-display text-[1.55rem] font-semibold text-slate-950">{title}</h3>
       <div className="space-y-4">
         {items.length ? items.map((item) => (
-          <div key={item.id} className="rounded-[18px] bg-slate-100 p-5">
+          <div key={item.id} className="rounded-lg border border-slate-200/80 bg-slate-100 p-5 dark:border-slate-700 dark:bg-slate-900/70">
             {type === 'event' ? (
               <>
                 <p className="mb-1 text-[1.2rem] font-semibold text-slate-950">{item.title}</p>
