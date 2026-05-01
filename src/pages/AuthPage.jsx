@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowLeft, LogIn, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, CalendarCheck2, LogIn, ShieldCheck, Users } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useApp } from '../context/useApp.js'
 import * as authService from '../services/auth.js'
@@ -13,6 +13,13 @@ const initialForms = {
   admin: { email: '', password: '' },
 }
 
+const TABS = [
+  { key: 'login', label: 'Sign in' },
+  { key: 'register', label: 'Register' },
+  { key: 'verify', label: 'Verify' },
+  { key: 'admin', label: 'Admin' },
+]
+
 function AuthPage() {
   const navigate = useNavigate()
   const { persistSession } = useApp()
@@ -22,65 +29,45 @@ function AuthPage() {
   const [busy, setBusy] = useState('')
 
   function updateForm(name, field, value) {
-    setForms((current) => ({
-      ...current,
-      [name]: {
-        ...current[name],
-        [field]: value,
-      },
-    }))
+    setForms((c) => ({ ...c, [name]: { ...c[name], [field]: value } }))
   }
 
-  async function handleSubmit(event) {
-    event.preventDefault()
+  async function handleSubmit(e) {
+    e.preventDefault()
     setBanner({ tone: 'info', message: '' })
     setBusy(activeTab)
-
     try {
       if (activeTab === 'login') {
-        const response = await authService.login(forms.login)
-        persistSession(response.data.token, response.data.user)
+        const r = await authService.login(forms.login)
+        persistSession(r.data.token, r.data.user)
         navigate('/app')
       }
-
       if (activeTab === 'register') {
         if (forms.register.role === 'COLLEGE_ADMIN') {
-          await authService.registerAdmin({
-            full_name: forms.register.full_name,
-            email: forms.register.email,
-            password: forms.register.password,
-            secret_key: forms.register.secret_key,
-          })
+          await authService.registerAdmin({ full_name: forms.register.full_name, email: forms.register.email, password: forms.register.password, secret_key: forms.register.secret_key })
           setActiveTab('admin')
           updateForm('admin', 'email', forms.register.email)
           updateForm('admin', 'password', forms.register.password)
-          setBanner({ tone: 'success', message: 'Admin account created successfully. You can sign in now.' })
+          setBanner({ tone: 'success', message: 'Admin account created. You can sign in now.' })
         } else {
-          await authService.registerStudent({
-            full_name: forms.register.full_name,
-            email: forms.register.email,
-            password: forms.register.password,
-            role: forms.register.role,
-          })
+          await authService.registerStudent({ full_name: forms.register.full_name, email: forms.register.email, password: forms.register.password, role: forms.register.role })
           setActiveTab('verify')
           updateForm('verify', 'email', forms.register.email)
-          setBanner({ tone: 'success', message: 'Registration complete. Check your email for the OTP, then verify here.' })
+          setBanner({ tone: 'success', message: 'Registration complete. Check your email for the OTP.' })
         }
       }
-
       if (activeTab === 'verify') {
         await authService.verifyEmail(forms.verify)
         setBanner({ tone: 'success', message: 'Email verified. You can sign in now.' })
         setActiveTab('login')
       }
-
       if (activeTab === 'admin') {
-        const response = await authService.adminLogin(forms.admin)
-        persistSession(response.data.token, response.data.user)
+        const r = await authService.adminLogin(forms.admin)
+        persistSession(r.data.token, r.data.user)
         navigate('/app')
       }
-    } catch (error) {
-      setBanner({ tone: 'danger', message: error.message })
+    } catch (err) {
+      setBanner({ tone: 'danger', message: err.message })
     } finally {
       setBusy('')
     }
@@ -89,154 +76,199 @@ function AuthPage() {
   async function resendOtp() {
     setBusy('resend')
     setBanner({ tone: 'info', message: '' })
-
     try {
       await authService.resendOtp({ email: forms.verify.email })
       setBanner({ tone: 'success', message: 'A fresh OTP is on its way.' })
-    } catch (error) {
-      setBanner({ tone: 'danger', message: error.message })
+    } catch (err) {
+      setBanner({ tone: 'danger', message: err.message })
     } finally {
       setBusy('')
     }
   }
 
   return (
-    <div className="min-h-screen hero-gradient">
-      <main className="mx-auto grid min-h-screen w-full max-w-[1720px] items-center gap-14 px-8 py-12 sm:px-10 lg:grid-cols-[minmax(0,1.15fr)_minmax(720px,860px)] lg:px-14 xl:px-16 2xl:px-20">
-        <div className="space-y-10">
-          <Link to="/" className="inline-flex items-center gap-3 text-[1.08rem] font-medium text-slate-900 transition hover:text-brand-600">
+    <div className="min-h-screen">
+      {/* Full-width two-column grid — no max-width cap */}
+      <div className="grid min-h-screen w-full grid-cols-1 lg:grid-cols-[1fr_520px] xl:grid-cols-[1fr_580px]">
+
+        {/* ── Left — branding panel ── */}
+        <motion.div
+          initial={{ opacity: 0, x: -24 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5, ease: [0.33, 1, 0.68, 1] }}
+          className="hidden flex-col justify-center gap-10 px-10 py-12 lg:flex xl:px-16"
+        >
+          <Link to="/" className="inline-flex items-center gap-2 text-base font-semibold text-slate-600 transition hover:text-brand-600">
             <ArrowLeft className="h-5 w-5" />
             Back to home
           </Link>
+
           <AppLogo />
-          <div className="max-w-3xl">
-            <h1 className="font-display text-[3.4rem] leading-[0.95] font-semibold tracking-tight text-slate-950 md:text-[4rem] xl:text-[4.7rem] 2xl:text-[5.15rem]">
-              Sign in to the CampusConnect workspace.
+
+          <div>
+            <h1
+              className="font-display font-bold tracking-tight text-slate-900"
+              style={{ fontSize: 'clamp(2.4rem, 3.5vw, 3.5rem)', lineHeight: 1.1 }}
+            >
+              Your campus,<br />
+              <span className="gradient-text">all in one place.</span>
             </h1>
-            <p className="mt-7 max-w-[52rem] text-[1.22rem] leading-9 text-slate-800">
+            <p className="mt-5 max-w-lg text-lg leading-relaxed text-slate-500">
               Students can discover and apply. Organizers can create events and review applications. Admins can moderate the queue.
             </p>
           </div>
-          <div className="grid gap-7 sm:grid-cols-2">
-            <InfoBlock title="Student and organizer access" icon={LogIn} text="Login, register, verify email, and manage your profile in one place." />
-            <InfoBlock title="Admin moderation" icon={ShieldCheck} text="Dedicated sign-in for campus admins reviewing event approvals." />
-          </div>
-        </div>
 
-        <motion.section
-          initial={{ opacity: 0, y: 16 }}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <InfoBlock icon={LogIn} title="Student & organizer" text="Login, register, verify email, and manage your profile." color="from-brand-400 to-brand-600" />
+            <InfoBlock icon={ShieldCheck} title="Admin access" text="Dedicated sign-in for campus admins reviewing event approvals." color="from-violet-500 to-violet-700" />
+            <InfoBlock icon={CalendarCheck2} title="Event lifecycle" text="Create, submit, and track events through the approval pipeline." color="from-sky-400 to-sky-600" />
+            <InfoBlock icon={Users} title="Student discovery" text="Search peers by skills, department, and year of study." color="from-amber-400 to-amber-600" />
+          </div>
+        </motion.div>
+
+        {/* ── Right — auth form ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="surface-panel mx-auto w-full max-w-[860px] rounded-[24px] p-9 md:p-11 xl:p-12"
+          transition={{ duration: 0.5, delay: 0.1, ease: [0.33, 1, 0.68, 1] }}
+          className="flex items-center justify-center bg-white/95 px-6 py-10 sm:px-10 lg:border-l lg:border-sky-100"
+          style={{ boxShadow: '-8px 0 40px rgba(15,23,42,0.06)' }}
         >
-          <div className="mb-8 grid grid-cols-2 gap-2 rounded-[var(--radius-xl)] border border-slate-200 bg-slate-50/90 p-2 md:grid-cols-4">
-            {['login', 'register', 'verify', 'admin'].map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setActiveTab(tab)}
-                className={`min-h-14 rounded-[var(--radius-lg)] px-4 py-3 text-sm font-semibold capitalize transition ${
-                  activeTab === tab
-                    ? 'bg-white text-slate-900 shadow-md ring-1 ring-slate-200'
-                    : 'text-slate-600 hover:bg-white/80 hover:text-slate-900'
-                }`}
-              >
-                {tab === 'admin' ? 'Admin' : tab === 'verify' ? 'Verify' : tab === 'register' ? 'Register' : 'Login'}
-              </button>
-            ))}
-          </div>
+          <div className="w-full max-w-[480px]">
 
-          <AlertBanner tone={banner.tone} message={banner.message} onClose={() => setBanner({ tone: 'info', message: '' })} />
+            {/* Mobile back + logo */}
+            <Link to="/" className="mb-6 inline-flex items-center gap-2 text-base font-semibold text-slate-600 transition hover:text-brand-600 lg:hidden">
+              <ArrowLeft className="h-5 w-5" /> Back to home
+            </Link>
+            <div className="mb-7 lg:hidden"><AppLogo /></div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {activeTab === 'login' ? (
-              <>
-                <Field label="Email">
-                  <Input type="email" value={forms.login.email} onChange={(event) => updateForm('login', 'email', event.target.value)} required />
-                </Field>
-                <Field label="Password">
-                  <Input type="password" value={forms.login.password} onChange={(event) => updateForm('login', 'password', event.target.value)} required />
-                </Field>
-              </>
-            ) : null}
+            {/* Heading */}
+            <h2 className="mb-1 font-display text-2xl font-bold text-slate-900">
+              {activeTab === 'login' && 'Welcome back'}
+              {activeTab === 'register' && 'Create your account'}
+              {activeTab === 'verify' && 'Verify your email'}
+              {activeTab === 'admin' && 'Admin sign in'}
+            </h2>
+            <p className="mb-7 text-base text-slate-500">
+              {activeTab === 'login' && 'Sign in to access your workspace.'}
+              {activeTab === 'register' && 'Join the CampusConnect community.'}
+              {activeTab === 'verify' && 'Enter the OTP sent to your email.'}
+              {activeTab === 'admin' && 'Restricted to college administrators.'}
+            </p>
 
-            {activeTab === 'register' ? (
-              <>
-                <Field label="Full name">
-                  <Input value={forms.register.full_name} onChange={(event) => updateForm('register', 'full_name', event.target.value)} required />
-                </Field>
-                <Field label="Email">
-                  <Input type="email" value={forms.register.email} onChange={(event) => updateForm('register', 'email', event.target.value)} required />
-                </Field>
-                <Field label="Password">
-                  <Input type="password" value={forms.register.password} onChange={(event) => updateForm('register', 'password', event.target.value)} required minLength={6} />
-                </Field>
-                <Field label="Role">
-                  <Select
-                    value={forms.register.role}
-                    onChange={(event) => updateForm('register', 'role', event.target.value)}
-                  >
-                    <option value="STUDENT">Student</option>
-                    <option value="COLLEGE_ADMIN">Admin</option>
-                  </Select>
-                </Field>
-                {forms.register.role === 'COLLEGE_ADMIN' ? (
-                  <Field label="Admin secret">
-                    <Input
-                      type="password"
-                      value={forms.register.secret_key}
-                      onChange={(event) => updateForm('register', 'secret_key', event.target.value)}
-                      required
-                    />
+            {/* Tab switcher */}
+            <div className="mb-7 grid grid-cols-4 gap-1 rounded-[14px] border border-slate-200 bg-slate-50 p-1">
+              {TABS.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`rounded-[10px] px-2 py-3 text-sm font-semibold transition ${
+                    activeTab === tab.key
+                      ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/80'
+                      : 'text-slate-500 hover:bg-white/60 hover:text-slate-700'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <AlertBanner tone={banner.tone} message={banner.message} onClose={() => setBanner({ tone: 'info', message: '' })} />
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {activeTab === 'login' && (
+                <>
+                  <Field label="Email address">
+                    <Input type="email" value={forms.login.email} onChange={(e) => updateForm('login', 'email', e.target.value)} placeholder="you@university.edu" required />
                   </Field>
-                ) : null}
-              </>
-            ) : null}
+                  <Field label="Password">
+                    <Input type="password" value={forms.login.password} onChange={(e) => updateForm('login', 'password', e.target.value)} placeholder="••••••••" required />
+                  </Field>
+                </>
+              )}
 
-            {activeTab === 'verify' ? (
-              <>
-                <Field label="Email used during registration">
-                  <Input type="email" value={forms.verify.email} onChange={(event) => updateForm('verify', 'email', event.target.value)} required />
-                </Field>
-                <Field label="OTP">
-                  <Input value={forms.verify.otp} onChange={(event) => updateForm('verify', 'otp', event.target.value)} required />
-                </Field>
-                <div className="flex flex-wrap gap-4">
-                  <SecondaryButton type="button" onClick={resendOtp} disabled={!forms.verify.email}>
+              {activeTab === 'register' && (
+                <>
+                  <Field label="Full name">
+                    <Input value={forms.register.full_name} onChange={(e) => updateForm('register', 'full_name', e.target.value)} placeholder="Your full name" required />
+                  </Field>
+                  <Field label="Email address">
+                    <Input type="email" value={forms.register.email} onChange={(e) => updateForm('register', 'email', e.target.value)} placeholder="you@university.edu" required />
+                  </Field>
+                  <Field label="Password">
+                    <Input type="password" value={forms.register.password} onChange={(e) => updateForm('register', 'password', e.target.value)} placeholder="Min. 6 characters" required minLength={6} />
+                  </Field>
+                  <Field label="Role">
+                    <Select value={forms.register.role} onChange={(e) => updateForm('register', 'role', e.target.value)}>
+                      <option value="STUDENT">Student</option>
+                      <option value="COLLEGE_ADMIN">College Admin</option>
+                    </Select>
+                  </Field>
+                  {forms.register.role === 'COLLEGE_ADMIN' && (
+                    <Field label="Admin secret key">
+                      <Input type="password" value={forms.register.secret_key} onChange={(e) => updateForm('register', 'secret_key', e.target.value)} placeholder="Provided by your institution" required />
+                    </Field>
+                  )}
+                </>
+              )}
+
+              {activeTab === 'verify' && (
+                <>
+                  <Field label="Email used during registration">
+                    <Input type="email" value={forms.verify.email} onChange={(e) => updateForm('verify', 'email', e.target.value)} placeholder="you@university.edu" required />
+                  </Field>
+                  <Field label="One-time password (OTP)">
+                    <Input value={forms.verify.otp} onChange={(e) => updateForm('verify', 'otp', e.target.value)} placeholder="6-digit code" required />
+                  </Field>
+                  <SecondaryButton type="button" onClick={resendOtp} disabled={!forms.verify.email || busy === 'resend'} className="w-full">
                     Resend OTP
                   </SecondaryButton>
-                </div>
-              </>
-            ) : null}
+                </>
+              )}
 
-            {activeTab === 'admin' ? (
-              <>
-                <Field label="Admin email">
-                  <Input type="email" value={forms.admin.email} onChange={(event) => updateForm('admin', 'email', event.target.value)} required />
-                </Field>
-                <Field label="Password">
-                  <Input type="password" value={forms.admin.password} onChange={(event) => updateForm('admin', 'password', event.target.value)} required />
-                </Field>
-              </>
-            ) : null}
+              {activeTab === 'admin' && (
+                <>
+                  <Field label="Admin email">
+                    <Input type="email" value={forms.admin.email} onChange={(e) => updateForm('admin', 'email', e.target.value)} placeholder="admin@university.edu" required />
+                  </Field>
+                  <Field label="Password">
+                    <Input type="password" value={forms.admin.password} onChange={(e) => updateForm('admin', 'password', e.target.value)} placeholder="••••••••" required />
+                  </Field>
+                </>
+              )}
 
-            <PrimaryButton type="submit" busy={busy === activeTab} className="w-full">
-              {activeTab === 'register' ? 'Create account' : activeTab === 'verify' ? 'Verify email' : activeTab === 'admin' ? 'Login as admin' : 'Sign in'}
-            </PrimaryButton>
-          </form>
-        </motion.section>
-      </main>
+              <PrimaryButton type="submit" busy={busy === activeTab} className="mt-2 w-full py-3.5 text-base">
+                {activeTab === 'register' ? 'Create account' : activeTab === 'verify' ? 'Verify email' : activeTab === 'admin' ? 'Sign in as admin' : 'Sign in'}
+              </PrimaryButton>
+            </form>
+
+            <p className="mt-6 text-center text-sm text-slate-400">
+              {activeTab === 'login' && (
+                <>No account?{' '}<button type="button" onClick={() => setActiveTab('register')} className="font-semibold text-brand-600 hover:underline">Register here</button></>
+              )}
+              {activeTab === 'register' && (
+                <>Already have an account?{' '}<button type="button" onClick={() => setActiveTab('login')} className="font-semibold text-brand-600 hover:underline">Sign in</button></>
+              )}
+            </p>
+          </div>
+        </motion.div>
+      </div>
     </div>
   )
 }
 
-function InfoBlock({ icon: Icon, title, text }) {
+function InfoBlock({ icon: Icon, title, text, color }) {
   return (
-    <div className="glass-panel elevated-hover rounded-[24px] p-8 xl:p-9">
-      <div className="mb-5 flex h-15 w-15 items-center justify-center rounded-[18px] bg-brand-500/10 text-brand-600 dark:text-brand-300">
-        <Icon className="h-6 w-6" />
+    <div
+      className="rounded-[var(--radius-xl)] border border-slate-200/80 bg-white p-5 transition hover:-translate-y-0.5"
+      style={{ boxShadow: 'var(--shadow-xs)' }}
+    >
+      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${color} text-white shadow-sm`}>
+        <Icon className="h-5 w-5" />
       </div>
-      <h2 className="mb-3 font-display text-[2rem] leading-tight font-semibold text-slate-950 xl:text-[2.2rem]">{title}</h2>
-      <p className="mb-0 text-[1.14rem] leading-9 text-slate-800">{text}</p>
+      <h3 className="mb-1.5 font-display text-base font-semibold text-slate-900">{title}</h3>
+      <p className="text-sm leading-relaxed text-slate-500">{text}</p>
     </div>
   )
 }

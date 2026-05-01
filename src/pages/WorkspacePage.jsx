@@ -787,6 +787,7 @@ function WorkspacePage() {
   function handleSelectEvent(eventId) {
     setSelectedEventId(eventId)
     setEmailForm(defaultEmailForm)
+    setCurrentSection('event-detail')
   }
 
   async function handleEmailApplicants(event) {
@@ -1298,28 +1299,21 @@ function WorkspacePage() {
                   {workspace.myEvents.length ? workspace.myEvents.map((event) => (
                     <div
                       key={event.id}
-                      className={`rounded-[var(--radius-xl)] border p-6 transition ${
-                        selectedEventId === event.id
-                          ? 'border-brand-400 bg-brand-50/60 shadow-sm'
-                          : 'border-slate-200 bg-white'
-                      }`}
+                      className="rounded-[var(--radius-xl)] border border-slate-200 bg-white p-6 transition hover:border-brand-200 hover:shadow-sm"
                     >
-                      <button
-                        type="button"
-                        onClick={() => handleSelectEvent(event.id)}
-                        className="w-full text-left"
-                      >
-                        <div className="mb-3 flex flex-wrap items-center gap-2">
-                          <Pill tone="info">{event.category}</Pill>
-                          <Pill tone={event.approval_status === 'APPROVED' ? 'success' : event.approval_status === 'REJECTED' ? 'danger' : 'warn'}>
-                            {event.approval_status}
-                          </Pill>
-                        </div>
-                        <h3 className="mb-2 font-display text-xl font-semibold text-slate-950">{event.title}</h3>
-                        <p className="mb-3 text-sm leading-7 text-slate-600">{event.description}</p>
-                        <p className="mb-0 text-xs font-medium text-slate-500">Deadline {formatDate(event.deadline)}</p>
-                      </button>
-                      <div className="mt-4 flex flex-wrap gap-2">
+                      <div className="mb-3 flex flex-wrap items-center gap-2">
+                        <Pill tone="info">{event.category}</Pill>
+                        <Pill tone={event.approval_status === 'APPROVED' ? 'success' : event.approval_status === 'REJECTED' ? 'danger' : 'warn'}>
+                          {event.approval_status}
+                        </Pill>
+                      </div>
+                      <h3 className="mb-2 font-display text-xl font-semibold text-slate-950">{event.title}</h3>
+                      <p className="mb-3 text-sm leading-7 text-slate-600">{event.description}</p>
+                      <p className="mb-4 text-xs font-medium text-slate-500">Deadline {formatDate(event.deadline)}</p>
+                      <div className="flex flex-wrap gap-2">
+                        <PrimaryButton type="button" onClick={() => handleSelectEvent(event.id)}>
+                          View applications
+                        </PrimaryButton>
                         <SecondaryButton type="button" onClick={() => startEditEvent(event)}>
                           Edit event
                         </SecondaryButton>
@@ -1329,99 +1323,151 @@ function WorkspacePage() {
                 </div>
               </div>
 
-              {selectedEventId ? (
-                <div className="mt-5 border-t border-slate-200 pt-5">
-                  <h3 className="mb-3 font-display text-lg font-semibold text-slate-900">Applications</h3>
-                  <div className="space-y-3">
-                    {workspace.eventApplications.length ? workspace.eventApplications.map((application) => (
-                      <div key={application.id} className="rounded-[var(--radius-xl)] border border-slate-200 bg-white p-5 shadow-sm">
-                        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <p className="mb-1 text-base font-semibold text-slate-950">{application.student?.full_name}</p>
-                            <p className="mb-0 text-sm text-slate-600">{application.student?.profile?.department || 'Department pending'} • Year {application.student?.profile?.year || 'NA'}</p>
-                          </div>
-                          <Pill tone={application.status === 'PENDING' ? 'warn' : application.status === 'REJECTED' ? 'danger' : 'success'}>
-                            {application.status}
-                          </Pill>
-                        </div>
-                        <p className="text-sm leading-7 text-slate-600">{application.message || 'No note attached.'}</p>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {['SHORTLISTED', 'SELECTED', 'REJECTED', 'COMPLETED'].map((status) => (
-                            <Button
-                              key={status}
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleStatusUpdate(application.id, status)}
-                              disabled={busy === application.id}
-                            >
-                              {status}
-                            </Button>
-                          ))}
-                          {CHAT_ELIGIBLE_STATUSES.includes(application.status) ? (
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => openChatThread(toChatSelection({
-                                event: selectedEvent,
-                                otherUser: application.student,
-                              }))}
-                            >
-                              Open chat
-                            </Button>
-                          ) : null}
-                        </div>
-                      </div>
-                    )) : <EmptyState title="No applications yet" message="Applications appear here after students apply." />}
-                  </div>
+              {selectedEventId ? null : null}
+            </SectionCard>
+          </div>
+        ) : null}
 
-                  <div className="mt-6 rounded-[var(--radius-xl)] border border-slate-200 bg-slate-50/80 p-6">
-                    <div className="mb-4 flex items-start gap-3">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600">
-                        <Mail className="h-5 w-5" />
-                      </div>
+        {/* ── Event detail page ── */}
+        {!isAdmin && currentSection === 'event-detail' && selectedEvent ? (
+          <div className="space-y-6">
+            {/* Back navigation */}
+            <button
+              type="button"
+              onClick={() => setCurrentSection('events')}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-base font-semibold text-slate-700 shadow-sm transition hover:border-brand-300 hover:text-brand-600"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+              Back to My Events
+            </button>
+
+            {/* Event header card */}
+            <div
+              className="rounded-[var(--radius-2xl)] border border-slate-200/80 bg-white p-7"
+              style={{ boxShadow: 'var(--shadow-sm)' }}
+            >
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <Pill tone="info">{selectedEvent.category}</Pill>
+                <Pill tone={selectedEvent.approval_status === 'APPROVED' ? 'success' : selectedEvent.approval_status === 'REJECTED' ? 'danger' : 'warn'}>
+                  {selectedEvent.approval_status}
+                </Pill>
+              </div>
+              <h1 className="mb-2 font-display text-3xl font-bold tracking-tight text-slate-900">{selectedEvent.title}</h1>
+              <p className="mb-4 text-base leading-relaxed text-slate-500">{selectedEvent.description}</p>
+              <div className="flex flex-wrap gap-6 text-sm text-slate-600">
+                <span><span className="font-semibold text-slate-800">Event name:</span> {selectedEvent.event_name}</span>
+                <span><span className="font-semibold text-slate-800">Positions:</span> {selectedEvent.number_of_positions}</span>
+                <span><span className="font-semibold text-slate-800">Deadline:</span> {formatDate(selectedEvent.deadline)}</span>
+              </div>
+            </div>
+
+            {/* Applications */}
+            <SectionCard
+              title="Applications"
+              description={`${workspace.eventApplications.length} applicant${workspace.eventApplications.length !== 1 ? 's' : ''} for this event.`}
+            >
+              <div className="space-y-4">
+                {workspace.eventApplications.length ? workspace.eventApplications.map((application) => (
+                  <div
+                    key={application.id}
+                    className="rounded-[var(--radius-xl)] border border-slate-200 bg-white p-6 shadow-sm"
+                  >
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                       <div>
-                        <h3 className="mb-1 font-display text-lg font-semibold text-slate-950">Email applicants</h3>
-                        <p className="mb-0 text-sm leading-7 text-slate-600">
-                          Send an update for {selectedEvent?.title || 'this event'}.
+                        <p className="mb-0.5 text-lg font-semibold text-slate-900">{application.student?.full_name}</p>
+                        <p className="text-sm text-slate-500">
+                          {application.student?.profile?.department || 'Department pending'} · Year {application.student?.profile?.year || 'NA'}
                         </p>
                       </div>
+                      <Pill tone={application.status === 'PENDING' ? 'warn' : application.status === 'REJECTED' ? 'danger' : 'success'}>
+                        {application.status}
+                      </Pill>
                     </div>
-
-                    <form onSubmit={handleEmailApplicants} className="grid gap-5">
-                      <Field label="Audience">
-                        <Select value={emailForm.target} onChange={(event) => setEmailForm({ ...emailForm, target: event.target.value })}>
-                          <option value="ALL">All applicants</option>
-                          <option value="SHORTLISTED">Shortlisted and selected applicants</option>
-                        </Select>
-                      </Field>
-                      <Field label="Subject">
-                        <Input
-                          value={emailForm.subject}
-                          onChange={(event) => setEmailForm({ ...emailForm, subject: event.target.value })}
-                          placeholder="Important update for applicants"
-                          required
-                          minLength={3}
-                        />
-                      </Field>
-                      <Field label="Message">
-                        <Textarea
-                          value={emailForm.message}
-                          onChange={(event) => setEmailForm({ ...emailForm, message: event.target.value })}
-                          placeholder="Share your update, next steps, or schedule details."
-                          required
-                          minLength={10}
-                        />
-                      </Field>
-                      <div className="flex flex-wrap gap-3">
-                        <PrimaryButton type="submit" busy={busy === 'email'}>Send email</PrimaryButton>
-                        <SecondaryButton type="button" onClick={() => setEmailForm(defaultEmailForm)} disabled={busy === 'email'}>
-                          Clear
-                        </SecondaryButton>
-                      </div>
-                    </form>
+                    {application.message && (
+                      <p className="mb-4 text-base leading-relaxed text-slate-600 italic">"{application.message}"</p>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      {['SHORTLISTED', 'SELECTED', 'REJECTED', 'COMPLETED'].map((status) => (
+                        <Button
+                          key={status}
+                          variant="outline"
+                          size="md"
+                          onClick={() => handleStatusUpdate(application.id, status)}
+                          disabled={busy === application.id}
+                        >
+                          {status}
+                        </Button>
+                      ))}
+                      {CHAT_ELIGIBLE_STATUSES.includes(application.status) ? (
+                        <Button
+                          variant="secondary"
+                          size="md"
+                          onClick={() => openChatThread(toChatSelection({
+                            event: selectedEvent,
+                            otherUser: application.student,
+                          }))}
+                        >
+                          Open chat
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
+                )) : (
+                  <EmptyState title="No applications yet" message="Applications will appear here after students apply to this event." />
+                )}
+              </div>
+            </SectionCard>
+
+            {/* Email applicants */}
+            <SectionCard
+              title="Email applicants"
+              description={`Send a bulk update to applicants for ${selectedEvent.title}.`}
+            >
+              <div className="mb-6 flex items-center gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600">
+                  <Mail className="h-6 w-6" />
                 </div>
-              ) : null}
+                <p className="text-base text-slate-600">
+                  Reach all or selected applicants with a single message — updates, schedules, or results.
+                </p>
+              </div>
+              <form onSubmit={handleEmailApplicants} className="grid gap-5 md:grid-cols-2">
+                <Field label="Audience">
+                  <Select value={emailForm.target} onChange={(e) => setEmailForm({ ...emailForm, target: e.target.value })}>
+                    <option value="ALL">All applicants</option>
+                    <option value="SHORTLISTED">Shortlisted and selected applicants</option>
+                  </Select>
+                </Field>
+                <Field label="Subject">
+                  <Input
+                    value={emailForm.subject}
+                    onChange={(e) => setEmailForm({ ...emailForm, subject: e.target.value })}
+                    placeholder="Important update for applicants"
+                    required
+                    minLength={3}
+                  />
+                </Field>
+                <div className="md:col-span-2">
+                  <Field label="Message">
+                    <Textarea
+                      value={emailForm.message}
+                      onChange={(e) => setEmailForm({ ...emailForm, message: e.target.value })}
+                      placeholder="Share your update, next steps, or schedule details."
+                      required
+                      minLength={10}
+                      className="min-h-36"
+                    />
+                  </Field>
+                </div>
+                <div className="flex flex-wrap gap-3 md:col-span-2">
+                  <PrimaryButton type="submit" busy={busy === 'email'}>Send email</PrimaryButton>
+                  <SecondaryButton type="button" onClick={() => setEmailForm(defaultEmailForm)} disabled={busy === 'email'}>
+                    Clear
+                  </SecondaryButton>
+                </div>
+              </form>
             </SectionCard>
           </div>
         ) : null}
@@ -1620,7 +1666,7 @@ function WorkspacePage() {
         ) : null}
 
         {!isAdmin && currentSection === 'students' ? (
-          <SectionCard title="Student search" description="Find peers by skills, department, and year.">
+          <SectionCard title="Student search" description="Find peers by skills, department, and year." tint="blue">
             <form onSubmit={searchStudents} className="mb-6 grid gap-5 md:grid-cols-4">
               <SearchInput value={studentFilters.search} onChange={(event) => setStudentFilters({ ...studentFilters, search: event.target.value })} placeholder="Name or email" />
               <Select value={studentFilters.department} onChange={(event) => setStudentFilters({ ...studentFilters, department: event.target.value })}>
@@ -1641,18 +1687,53 @@ function WorkspacePage() {
               </div>
             </form>
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {workspace.students.length ? workspace.students.map((student) => (
-                <Card key={student.id} interactive className="border-slate-200/90">
-                  <h3 className="mb-1 font-display text-lg font-semibold text-slate-950">{student.full_name}</h3>
-                  <p className="mb-2 text-sm text-slate-600">{student.email}</p>
-                  <p className="mb-4 text-sm text-slate-600">{student.profile?.department || 'Department pending'} • Year {student.profile?.year || 'NA'}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {toArray(student.profile?.skills).map((skill) => (
-                      <Badge key={skill} variant="neutral">{skill}</Badge>
-                    ))}
+              {workspace.students.length ? workspace.students.map((student, idx) => {
+                // Cycle through soft tints per card
+                const tints = [
+                  { bg: 'var(--card-tint-teal)',   border: 'rgba(17,179,127,0.18)',  bar: '#11b37f',  avatarGrad: 'var(--gradient-brand)',  avatarShadow: 'rgba(17,179,127,0.25)'  },
+                  { bg: 'var(--card-tint-purple)', border: 'rgba(124,58,237,0.18)', bar: '#7c3aed', avatarGrad: 'var(--gradient-purple)', avatarShadow: 'rgba(124,58,237,0.22)' },
+                  { bg: 'var(--card-tint-blue)',   border: 'rgba(14,165,233,0.18)',  bar: '#0ea5e9',  avatarGrad: 'var(--gradient-sky)',    avatarShadow: 'rgba(14,165,233,0.22)'  },
+                  { bg: 'var(--card-tint-amber)',  border: 'rgba(245,158,11,0.18)', bar: '#f59e0b', avatarGrad: 'var(--gradient-amber)',  avatarShadow: 'rgba(245,158,11,0.22)' },
+                ]
+                const t = tints[idx % tints.length]
+                const initials = (student.full_name || '?').slice(0, 2).toUpperCase()
+                return (
+                  <div
+                    key={student.id}
+                    className="card-hover relative overflow-hidden rounded-[var(--radius-xl)] p-5 transition"
+                    style={{ background: t.bg, border: `1px solid ${t.border}`, boxShadow: 'var(--shadow-xs)' }}
+                  >
+                    {/* Accent top bar */}
+                    <div className="absolute left-0 right-0 top-0 h-[3px] rounded-t-[var(--radius-xl)]" style={{ background: t.bar }} aria-hidden />
+                    <div className="flex items-start gap-4 pt-1">
+                      {/* Avatar */}
+                      <div
+                        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white shadow-md"
+                        style={{ background: t.avatarGrad, boxShadow: `0 4px 12px ${t.avatarShadow}` }}
+                      >
+                        {initials}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="mb-0.5 font-display text-lg font-semibold text-slate-900 leading-tight">{student.full_name}</h3>
+                        <p className="mb-1 text-sm text-slate-500 truncate">{student.email}</p>
+                        <p className="mb-3 text-sm font-medium text-slate-600">
+                          {student.profile?.department || 'Department pending'} · Year {student.profile?.year || 'NA'}
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {toArray(student.profile?.skills).map((skill) => (
+                            <span
+                              key={skill}
+                              className="rounded-full bg-white/80 px-2.5 py-0.5 text-xs font-semibold text-slate-700 border border-sky-100"
+                            >
+                              {skill}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </Card>
-              )) : <EmptyState title="No students found" message="Try broader filters or encourage peers to complete profiles." />}
+                )
+              }) : <EmptyState title="No students found" message="Try broader filters or encourage peers to complete profiles." />}
             </div>
           </SectionCard>
         ) : null}
@@ -1661,6 +1742,7 @@ function WorkspacePage() {
           <SectionCard
             title="Notifications"
             description="Application updates, approvals, and system messages."
+            tint="blue"
             action={(
               <SecondaryButton onClick={() => handleNotificationAction('', 'read-all')}>
                 Mark all read
@@ -1668,31 +1750,49 @@ function WorkspacePage() {
             )}
           >
             <div className="space-y-3">
-              {workspace.notifications.length ? workspace.notifications.map((item) => (
-                <div
-                  key={item.id}
-                  className={`flex flex-col gap-4 rounded-[var(--radius-xl)] border p-5 md:flex-row md:items-center md:justify-between ${
-                    item.is_read ? 'border-slate-200 bg-white' : 'border-brand-200 bg-brand-50/40'
-                  }`}
-                >
-                  <div className="flex gap-3">
-                    <div className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${item.is_read ? 'bg-slate-100 text-slate-500' : 'bg-brand-500 text-white'}`} aria-hidden>
-                      <Bell className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <div className="mb-2 flex flex-wrap items-center gap-2">
-                        <Pill tone={item.is_read ? 'default' : 'info'}>{item.is_read ? 'Read' : 'Unread'}</Pill>
-                        <span className="text-xs font-medium text-slate-500">{formatDateTime(item.created_at)}</span>
+              {workspace.notifications.length ? workspace.notifications.map((item, idx) => {
+                // Unread = brand teal tint, read = cycle through soft pastels
+                const readTints = [
+                  { bg: 'var(--card-tint-blue)',   border: 'rgba(14,165,233,0.15)',  iconGrad: 'var(--gradient-sky)',    iconShadow: 'rgba(14,165,233,0.2)'  },
+                  { bg: 'var(--card-tint-purple)', border: 'rgba(124,58,237,0.15)', iconGrad: 'var(--gradient-purple)', iconShadow: 'rgba(124,58,237,0.2)' },
+                  { bg: 'var(--card-tint-teal)',   border: 'rgba(17,179,127,0.15)',  iconGrad: 'var(--gradient-brand)',  iconShadow: 'rgba(17,179,127,0.2)'  },
+                  { bg: 'var(--card-tint-amber)',  border: 'rgba(245,158,11,0.15)', iconGrad: 'var(--gradient-amber)',  iconShadow: 'rgba(245,158,11,0.2)' },
+                ]
+                const unreadStyle = { bg: 'linear-gradient(145deg,#f0fdf9 0%,#e0f2fe 100%)', border: 'rgba(17,179,127,0.25)', iconGrad: 'var(--gradient-brand)', iconShadow: 'rgba(17,179,127,0.3)' }
+                const t = item.is_read ? readTints[idx % readTints.length] : unreadStyle
+
+                return (
+                  <div
+                    key={item.id}
+                    className="flex flex-col gap-4 rounded-[var(--radius-xl)] p-5 transition md:flex-row md:items-center md:justify-between"
+                    style={{ background: t.bg, border: `1px solid ${t.border}`, boxShadow: 'var(--shadow-xs)' }}
+                  >
+                    <div className="flex gap-4">
+                      {/* Gradient icon */}
+                      <div
+                        className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white shadow-md"
+                        style={{ background: t.iconGrad, boxShadow: `0 4px 10px ${t.iconShadow}` }}
+                        aria-hidden
+                      >
+                        <Bell className="h-5 w-5" />
                       </div>
-                      <p className="mb-0 text-sm leading-7 text-slate-900">{item.message}</p>
+                      <div>
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                          <Pill tone={item.is_read ? 'default' : 'success'}>{item.is_read ? 'Read' : 'Unread'}</Pill>
+                          <span className="text-sm font-medium text-slate-500">{formatDateTime(item.created_at) || 'No timestamp'}</span>
+                        </div>
+                        <p className="mb-0 text-base leading-relaxed text-slate-800">{item.message}</p>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 flex-wrap gap-2">
+                      {!item.is_read ? (
+                        <SecondaryButton onClick={() => handleNotificationAction(item.id, 'read')}>Mark read</SecondaryButton>
+                      ) : null}
+                      <SecondaryButton onClick={() => handleNotificationAction(item.id, 'delete')}>Delete</SecondaryButton>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {!item.is_read ? <SecondaryButton onClick={() => handleNotificationAction(item.id, 'read')}>Mark read</SecondaryButton> : null}
-                    <SecondaryButton onClick={() => handleNotificationAction(item.id, 'delete')}>Delete</SecondaryButton>
-                  </div>
-                </div>
-              )) : <EmptyState title="No notifications" message="New activity will appear here." />}
+                )
+              }) : <EmptyState title="No notifications" message="New activity will appear here." />}
             </div>
           </SectionCard>
         ) : null}

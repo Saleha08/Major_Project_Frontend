@@ -1,21 +1,23 @@
 /**
  * Campus Connect design tokens — light theme first.
- * Imported from index.css after Tailwind @import.
  */
 
 :root {
-  /* Brand — soft teal primary + lavender secondary */
+  /* Brand */
   --color-primary: #11b37f;
   --color-primary-hover: #0b8d65;
   --color-primary-muted: #d9fbf0;
-  --color-secondary: #8b5cf6;
+  --color-secondary: #7c3aed;
   --color-secondary-muted: #ede9fe;
+  --color-accent-blue: #0ea5e9;
+  --color-accent-pink: #ec4899;
+  --color-accent-amber: #f59e0b;
 
   /* Surfaces */
-  --bg-app: #f6f8fb;
+  --bg-app: #f0f7ff;
   --bg-elevated: #ffffff;
-  --bg-muted: #eff3f8;
-  --bg-subtle: #f1f5f9;
+  --bg-muted: #e4f0fb;
+  --bg-subtle: #edf4fc;
 
   /* Text */
   --text-primary: #0f172a;
@@ -24,31 +26,61 @@
   --text-faint: #94a3b8;
 
   /* Borders & focus */
-  --border-subtle: rgba(15, 23, 42, 0.1);
-  --border-emphasis: rgba(15, 23, 42, 0.16);
-  --ring-focus: rgba(17, 179, 127, 0.35);
+  --border-subtle: rgba(14, 165, 233, 0.12);
+  --border-emphasis: rgba(14, 165, 233, 0.22);
+  --ring-focus: rgba(17, 179, 127, 0.4);
 
-  /* Radius (8px grid: 8, 12, 16) */
+  /* Radius */
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-xl: 20px;
+  --radius-2xl: 28px;
 
-  /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
-  --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
-  --shadow-lg: 0 18px 44px rgba(15, 23, 42, 0.12);
+  /* Shadows — blue-tinted for cohesion with background */
+  --shadow-xs: 0 1px 3px rgba(14, 165, 233, 0.07), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-sm: 0 2px 8px rgba(14, 165, 233, 0.09), 0 1px 3px rgba(15, 23, 42, 0.05);
+  --shadow-md: 0 6px 20px rgba(14, 165, 233, 0.10), 0 2px 6px rgba(15, 23, 42, 0.05);
+  --shadow-lg: 0 16px 40px rgba(14, 165, 233, 0.13), 0 4px 12px rgba(15, 23, 42, 0.06);
+  --shadow-xl: 0 28px 60px rgba(14, 165, 233, 0.15), 0 8px 20px rgba(15, 23, 42, 0.08);
+
+  /* Card hover shadow */
+  --shadow-card-hover: 0 12px 32px rgba(14, 165, 233, 0.16), 0 4px 10px rgba(15, 23, 42, 0.07);
+
+  /* Gradients */
+  --gradient-brand:        linear-gradient(135deg, #11b37f 0%, #0ea5e9 100%);
+  --gradient-brand-soft:   linear-gradient(135deg, #d9fbf0 0%, #e0f2fe 100%);
+  --gradient-purple:       linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%);
+  --gradient-purple-soft:  linear-gradient(135deg, #ede9fe 0%, #f3e8ff 100%);
+  --gradient-sky:          linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%);
+  --gradient-sky-soft:     linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%);
+  --gradient-amber:        linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
+  --gradient-amber-soft:   linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%);
+  --gradient-rose:         linear-gradient(135deg, #f43f5e 0%, #fb7185 100%);
+  --gradient-rose-soft:    linear-gradient(135deg, #ffe4e6 0%, #fff1f2 100%);
+  --gradient-hero:         linear-gradient(160deg, #e8f4fd 0%, #f0f7ff 40%, #f8fbff 100%);
+
+  /* Section card tints — very subtle, different per section */
+  --card-tint-teal:   linear-gradient(145deg, #f0fdf9 0%, #ffffff 60%);
+  --card-tint-blue:   linear-gradient(145deg, #f0f9ff 0%, #ffffff 60%);
+  --card-tint-purple: linear-gradient(145deg, #faf5ff 0%, #ffffff 60%);
+  --card-tint-amber:  linear-gradient(145deg, #fffbeb 0%, #ffffff 60%);
+  --card-tint-rose:   linear-gradient(145deg, #fff1f2 0%, #ffffff 60%);
+  --card-tint-white:  #ffffff;
 
   /* Motion */
   --ease-out: cubic-bezier(0.33, 1, 0.68, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --duration-fast: 150ms;
-  --duration-normal: 200ms;
+  --duration-normal: 220ms;
+  --duration-slow: 350ms;
 }
 
 @media (prefers-reduced-motion: reduce) {
   :root {
     --duration-fast: 0ms;
     --duration-normal: 0ms;
+    --duration-slow: 0ms;
   }
 
   *,
